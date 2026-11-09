@@ -52,7 +52,7 @@
 
     @vite(['resources/css/app.css'])
 </head>
-<body class="font-sans antialiased bg-background text-foreground">
+<body class="consent font-sans antialiased bg-background text-foreground">
 <div class="min-h-screen flex items-center justify-center p-4">
     <div class="w-full max-w-lg">
         <!-- Card Container -->
