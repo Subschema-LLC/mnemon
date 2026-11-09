@@ -94,6 +94,14 @@ return [
         'driver' => env('MNEMON_DIGEST_DRIVER', 'openai'),
         'confidence_floor' => env('MNEMON_DIGEST_FLOOR', 0.5),
 
+        // The review queue (Admin -> Review Queue). "off" (the default) keeps
+        // today's behaviour: proposals at or above the floor become drawers,
+        // the rest are dropped. "low" holds the below-floor ones for review
+        // instead of dropping them. "all" holds every proposal: nothing a
+        // digest proposes becomes a drawer until the owner approves it. New
+        // wings always go to Pending Wings, whatever the mode.
+        'review' => env('MNEMON_DIGEST_REVIEW', 'off'),
+
         // Overrides mnemon.llm.model for digests only. Unset, digests use the
         // shared model. A model marked for digests in the admin panel wins
         // over both.

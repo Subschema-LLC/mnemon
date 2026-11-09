@@ -9,6 +9,20 @@ Plugin versions refer to the Claude Code plugin in `plugins/mnemon/`.
 
 ## [Unreleased]
 
+### Added
+- **An optional review queue for digests (`MNEMON_DIGEST_REVIEW`).** `off`
+  (the default) behaves as before. `low` holds proposals below the confidence
+  floor for review instead of dropping them; `all` holds every proposal until
+  the owner approves it. Admin → Review Queue approves a proposal as is,
+  approves it after editing its text, wing or room, or discards it, one at a
+  time or in bulk. An approved proposal becomes an ordinary drawer, with a
+  `review` block in its metadata; the proposal stays, with its original text,
+  linked to that drawer. Held content is redacted like a drawer's, held
+  proposals honour wing restrictions, and `session_digest` fills its
+  `queued_for_review` field (replays included). New wings still go to Pending
+  Wings. This is the "pre-store digest review" item from the Layer 2 design's
+  future work.
+
 ## [1.1.0] — 2026-10-28
 
 ### Added

@@ -85,7 +85,7 @@ app/
     Prompts/       — MCP prompt handlers
     Concerns/      — Shared traits (RequiresScope, RequiresWingAccess, ResolvesAgentSource, etc.)
     Support/       — BrainSessionLogger and other support classes
-  Models/          — Eloquent models (Wing, Room, Drawer, WikiPage, BrainSession, McpClientRestriction, McpTokenRestriction (legacy), WikiPendingWing)
+  Models/          — Eloquent models (Wing, Room, Drawer, WikiPage, BrainSession, McpClientRestriction, McpTokenRestriction (legacy), WikiPendingWing, DrawerProposal)
   Console/
     Commands/      — Artisan commands (includes InstallClaudeCodeHooks.php for Layer 2 setup)
   Providers/
