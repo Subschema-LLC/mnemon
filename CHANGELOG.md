@@ -10,6 +10,20 @@ Plugin versions refer to the Claude Code plugin in `plugins/mnemon/`.
 ## [Unreleased]
 
 ### Added
+- **Session digests on Anthropic or any OpenAI-compatible API.** Two new digest
+  drivers beside `openai`: `anthropic` (Messages API with structured outputs,
+  `ANTHROPIC_API_KEY`, default `claude-haiku-5-5`) and `openai-compatible`
+  (OpenRouter, Groq, a local Ollama or vLLM: `MNEMON_DIGEST_BASE_URL`,
+  `MNEMON_DIGEST_API_KEY`, `MNEMON_DIGEST_MODEL`, `MNEMON_DIGEST_JSON_MODE`).
+  The provider of the model marked for digests in the admin panel decides
+  which driver runs; with none marked, `MNEMON_DIGEST_DRIVER` does.
+  `brain_status` publishes the digest `provider` beside the model.
+- **LLM models form: pick from a list, or add your own.** Provider and model
+  are dropdowns. The model list comes from the provider's own models endpoint
+  when the server holds its key (cached for an hour), else from the models
+  Mnemon knows; the **+** beside each field adds a model id or a
+  price-comparison provider that is not listed. The **Use for digests** toggle
+  says when the provider's key is not set.
 - **Embeddings from providers other than OpenAI.** Three new values for
   `MNEMON_EMBEDDING_DRIVER`: `voyage` (Voyage AI, `VOYAGE_API_KEY`), `gemini`
   (Google Gemini, `GEMINI_API_KEY`, default `gemini-embedding-2` at 768
@@ -30,6 +44,11 @@ Plugin versions refer to the Claude Code plugin in `plugins/mnemon/`.
   `queued_for_review` field (replays included). New wings still go to Pending
   Wings. This is the "pre-store digest review" item from the Layer 2 design's
   future work.
+
+### Fixed
+- **The OAuth consent screens are readable in dark mode.** Their colour
+  tokens were never defined, so text, borders and buttons fell back to
+  near-invisible defaults on a dark background. Light mode is unchanged.
 
 ## [1.1.0] — 2026-10-28
 

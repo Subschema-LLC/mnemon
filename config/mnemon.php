@@ -115,6 +115,8 @@ return [
     ],
 
     'digest' => [
+        // openai, anthropic or openai-compatible. A model marked for digests
+        // in the admin panel wins: its provider's driver runs instead.
         'driver' => env('MNEMON_DIGEST_DRIVER', 'openai'),
         'confidence_floor' => env('MNEMON_DIGEST_FLOOR', 0.5),
 
@@ -130,6 +132,22 @@ return [
         // shared model. A model marked for digests in the admin panel wins
         // over both.
         'openai_model' => env('MNEMON_DIGEST_OPENAI_MODEL'),
+
+        // The anthropic driver's model when none is marked. Key:
+        // ANTHROPIC_API_KEY.
+        'anthropic_model' => env('MNEMON_DIGEST_ANTHROPIC_MODEL', 'claude-haiku-5-5'),
+
+        // The openai-compatible driver: any OpenAI-style chat completions
+        // API (OpenRouter, Groq, a local Ollama or vLLM...). base_url is the
+        // URL before /chat/completions; the key is optional, for local
+        // servers. Turn json_mode off for a server that rejects
+        // response_format.
+        'compatible' => [
+            'base_url' => env('MNEMON_DIGEST_BASE_URL'),
+            'api_key' => env('MNEMON_DIGEST_API_KEY'),
+            'model' => env('MNEMON_DIGEST_MODEL'),
+            'json_mode' => (bool) env('MNEMON_DIGEST_JSON_MODE', true),
+        ],
 
         // Seconds to wait on the digest completion. The old hard-coded 20 was
         // too tight for a large transcript and produced `cURL error 28`, which

@@ -5,6 +5,7 @@ namespace Tests\Feature\Mcp\Tools;
 use App\Models\BrainSession;
 use App\Models\DigestUsage;
 use App\Models\Drawer;
+use App\Models\LlmModel;
 use App\Models\Room;
 use App\Models\SessionDigest;
 use App\Models\Wing;
@@ -360,6 +361,30 @@ class SessionDigestToolTest extends TestCase
 
         $this->assertTrue($response->json('result.isError'));
         $this->assertSame(0, SessionDigest::count());
+    }
+
+    public function test_a_marked_anthropic_model_digests_through_anthropic_and_records_its_usage(): void
+    {
+        $work = Wing::factory()->create(['slug' => 'work']);
+        Room::factory()->create(['slug' => 'notes', 'wing_id' => $work->id]);
+        config(['services.anthropic.api_key' => 'sk-ant-test', 'mnemon.digest.driver' => 'openai']);
+        LlmModel::create(['provider' => 'anthropic', 'model' => 'claude-sonnet-5-5', 'is_digest_model' => true]);
+        Http::fake(['api.anthropic.com/v1/messages' => Http::response([
+            'content' => [['type' => 'text', 'text' => json_encode(['proposals' => [
+                ['content' => 'anthropic kept this', 'wing_slug' => 'work', 'room_slug' => 'notes', 'confidence' => 0.9,
+                    'propose_new_wing' => false, 'propose_new_room' => false, 'rationale' => 'a fact'],
+            ]])]],
+            'stop_reason' => 'end_turn',
+            'usage' => ['input_tokens' => 800, 'output_tokens' => 90],
+        ])]);
+
+        $response = $this->mcpCall('session_digest', $this->digestArgs('sess-anthropic'), ['mcp:use']);
+
+        $this->assertNotTrue($response->json('result.isError'));
+        $this->assertSame(['anthropic kept this'], Drawer::pluck('content')->all());
+        $usage = DigestUsage::sole();
+        $this->assertSame(['anthropic', 'claude-sonnet-5-5', 800, 90], [$usage->provider, $usage->model, $usage->prompt_tokens, $usage->completion_tokens]);
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), 'openai.com'));
     }
 
     private function digestArgs(string $sessionId): array

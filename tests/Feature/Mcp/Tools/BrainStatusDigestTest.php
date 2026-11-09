@@ -55,6 +55,19 @@ class BrainStatusDigestTest extends TestCase
         $this->assertEquals(2, $digest['price_out_per_mtok']);
     }
 
+    public function test_marking_another_providers_model_publishes_that_provider_model_and_price(): void
+    {
+        config(['mnemon.digest.driver' => 'openai', 'mnemon.llm.model' => 'gpt-test']);
+        LlmModel::create(['provider' => 'anthropic', 'model' => 'claude-haiku-5-5', 'is_digest_model' => true,
+            'price_in_per_mtok' => '1', 'price_out_per_mtok' => '5']);
+
+        $digest = $this->digest();
+
+        $this->assertSame('anthropic', $digest['provider']);
+        $this->assertSame('claude-haiku-5-5', $digest['model']);
+        $this->assertEquals(5, $digest['price_out_per_mtok']);
+    }
+
     public function test_swapping_the_digest_model_swaps_the_published_model_and_prices(): void
     {
         config(['mnemon.llm.model' => 'gpt-test', 'mnemon.digest.openai_model' => null]);

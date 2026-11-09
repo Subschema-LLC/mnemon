@@ -2,192 +2,90 @@
 
 namespace App\Services\Digest;
 
-use App\Models\LlmModel;
-use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class OpenAiDigestDriver
+/**
+ * OpenAI's Chat Completions API. OpenAiCompatibleDigestDriver reuses it for
+ * other services with the same API.
+ */
+class OpenAiDigestDriver extends DigestDriver
 {
-    /** @var array{prompt_tokens: int, cached_prompt_tokens: int, completion_tokens: int, reasoning_tokens: int}|null */
-    private ?array $lastUsage = null;
-
-    private ?string $lastModel = null;
-
-    /**
-     * Token usage of the most recent digest() call; null before a call or
-     * when the response reported none.
-     *
-     * @return array{prompt_tokens: int, cached_prompt_tokens: int, completion_tokens: int, reasoning_tokens: int}|null
-     */
-    public function lastUsage(): ?array
-    {
-        return $this->lastUsage;
-    }
-
-    /**
-     * The model the most recent digest() call asked; null before a call.
-     */
-    public function lastModel(): ?string
-    {
-        return $this->lastModel;
-    }
-
     public function provider(): string
     {
         return 'openai';
     }
 
-    /**
-     * The model digests run on: the one marked in the admin panel, else the
-     * configured one.
-     */
-    public function model(): string
+    protected function configuredModel(): ?string
     {
-        return LlmModel::digestModel()?->model
-            ?: config('mnemon.digest.openai_model')
-            ?: config('mnemon.llm.model', 'gpt-5.6-luna');
+        return config('mnemon.digest.openai_model') ?: config('mnemon.llm.model', 'gpt-5.6-luna');
     }
 
-    /**
-     * The system prompt for a digest of this context. Public so the size
-     * brain_status advertises is measured on the real prompt.
-     *
-     * @param  array<string, mixed>  $context
-     */
-    public function systemPrompt(array $context): string
+    protected function ensureConfigured(): void
     {
-        // The session's project is known from where it ran; say so, so the
-        // model writes for that project. The service enforces the filing.
-        $sessionWing = isset($context['session_wing'])
-            ? "\nThis session ran in the project whose wing is '{$context['session_wing']}'. File project-specific drawers there; ".
-              "use another wing only for content that is not about this project (a person, a cross-project decision).\n"
-            : '';
-
-        return "You are Mnemon's session digester. Read a Claude Code transcript and extract drawers worth storing. ".
-            "Respond with strict JSON: {\"proposals\":[{\"content\":\"…\",\"wing_slug\":\"…\",\"room_slug\":\"…\",\"confidence\":0.0-1.0,\"propose_new_wing\":bool,\"propose_new_room\":bool,\"rationale\":\"…\"}]}.\n".
-            'Existing wings: '.json_encode($context['existing_wings'] ?? [])."\n".
-            'Existing rooms per wing (wing_id keys): '.json_encode($context['existing_rooms_per_wing'] ?? [])."\n".
-            'Drawers already captured this session (avoid duplicates): '.json_encode($context['recent_drawers'] ?? []).
-            $sessionWing;
-    }
-
-    /**
-     * @return array<int, array<string, mixed>> The model's proposals; empty when it found nothing worth keeping.
-     *
-     * @throws DigestUnavailable When the model could not be asked or its answer could not be read.
-     */
-    public function digest(string $transcript, array $context): array
-    {
-        $this->lastUsage = null;
-        $this->lastModel = null;
-
-        $apiKey = config('services.openai.api_key') ?? env('OPENAI_API_KEY');
-        if (empty($apiKey)) {
+        if (empty($this->apiKey())) {
             Log::warning('mnemon: OPENAI_API_KEY missing for session_digest');
 
             throw new DigestUnavailable('OPENAI_API_KEY is not set on the server', retryable: false);
         }
-
-        $model = $this->lastModel = $this->model();
-
-        $system = $this->systemPrompt($context);
-
-        // A timeout does not come back as an unsuccessful response -- the HTTP
-        // client throws. Either way the model was never heard from, which is
-        // not the same as the model finding nothing: returning [] for both had
-        // the slice recorded as digested and its turns lost. 20s was the old
-        // budget and proved too tight for a large transcript; it is
-        // configurable so it can be tuned without a patch.
-        try {
-            $response = Http::withToken($apiKey)
-                ->timeout((int) config('mnemon.digest.timeout', 60))
-                ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => $model,
-                    'max_completion_tokens' => (int) config('mnemon.digest.max_completion_tokens', 16000),
-                    'response_format' => ['type' => 'json_object'],
-                    'messages' => [
-                        ['role' => 'system', 'content' => $system],
-                        ['role' => 'user', 'content' => "Transcript:\n\n".$transcript],
-                    ],
-                ]);
-        } catch (ConnectionException $e) {
-            Log::warning('mnemon: openai digest call could not complete', [
-                'reason' => $e->getMessage(),
-            ]);
-
-            // The transport's own message (a cURL error and its timings) goes
-            // to the log, not to the client.
-            throw new DigestUnavailable('the model call timed out or could not connect', retryable: true);
-        }
-
-        if (! $response->successful()) {
-            $status = $response->status();
-            Log::warning('mnemon: openai digest call failed', ['status' => $status]);
-
-            // 429 and 5xx clear on their own; any other 4xx (a bad key, a
-            // rejected request) fails the same way on every retry.
-            throw new DigestUnavailable(
-                "the model call failed with HTTP {$status}",
-                retryable: $status === 429 || $status >= 500,
-            );
-        }
-
-        $usage = $response->json('usage');
-        if (is_array($usage)) {
-            $this->lastUsage = [
-                'prompt_tokens' => (int) ($usage['prompt_tokens'] ?? 0),
-                'cached_prompt_tokens' => (int) ($usage['prompt_tokens_details']['cached_tokens'] ?? 0),
-                'completion_tokens' => (int) ($usage['completion_tokens'] ?? 0),
-                'reasoning_tokens' => (int) ($usage['completion_tokens_details']['reasoning_tokens'] ?? 0),
-            ];
-        }
-
-        $content = $response->json('choices.0.message.content');
-        $parsed = json_decode($content ?? '', true);
-
-        if (! is_array($parsed) || ! isset($parsed['proposals']) || ! is_array($parsed['proposals'])) {
-            Log::warning('mnemon: openai digest returned unparseable content');
-
-            throw new DigestUnavailable('the model answered with content that is not a proposals list', retryable: true);
-        }
-
-        // Only what the service can persist. One proposal it cannot -- no
-        // content, content that is not text, a wing that is not a name --
-        // used to throw mid-loop after earlier drawers were written, and the
-        // client's retry wrote them again.
-        $usable = [];
-        foreach ($parsed['proposals'] as $p) {
-            if (is_array($p) && is_string($p['confidence'] ?? null) && is_numeric($p['confidence'])) {
-                $p['confidence'] = (float) $p['confidence'];
-            }
-            if ($this->usable($p)) {
-                $usable[] = $p;
-            }
-        }
-
-        if (($dropped = count($parsed['proposals']) - count($usable)) > 0) {
-            Log::info('mnemon: digest proposals dropped as unusable', ['dropped' => $dropped, 'kept' => count($usable)]);
-        }
-
-        return $usable;
     }
 
-    private function usable(mixed $p): bool
+    protected function apiKey(): ?string
     {
-        if (! is_array($p)
-            || ! is_string($p['content'] ?? null) || trim($p['content']) === ''
-            || ! (is_int($p['confidence'] ?? null) || is_float($p['confidence'] ?? null))) {
-            return false;
+        return config('services.openai.api_key') ?? env('OPENAI_API_KEY');
+    }
+
+    protected function endpoint(): string
+    {
+        return 'https://api.openai.com/v1/chat/completions';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function body(string $model, string $system, string $user): array
+    {
+        return [
+            'model' => $model,
+            'max_completion_tokens' => (int) config('mnemon.digest.max_completion_tokens', 16000),
+            'response_format' => ['type' => 'json_object'],
+            'messages' => [
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ],
+        ];
+    }
+
+    protected function send(string $model, string $system, string $user): Response
+    {
+        $http = Http::timeout((int) config('mnemon.digest.timeout', 60));
+        if (($key = $this->apiKey()) !== null && $key !== '') {
+            $http = $http->withToken($key);
         }
 
-        foreach (['wing_slug', 'room_slug'] as $key) {
-            if (array_key_exists($key, $p) && $p[$key] !== null && ! is_string($p[$key])) {
-                return false;
-            }
+        return $http->post($this->endpoint(), $this->body($model, $system, $user));
+    }
+
+    protected function contentFrom(Response $response): ?string
+    {
+        $content = $response->json('choices.0.message.content');
+
+        return is_string($content) ? $content : null;
+    }
+
+    protected function usageFrom(Response $response): ?array
+    {
+        $usage = $response->json('usage');
+        if (! is_array($usage)) {
+            return null;
         }
 
-        // A new wing has to be named.
-        return empty($p['propose_new_wing']) || trim((string) ($p['wing_slug'] ?? '')) !== '';
+        return [
+            'prompt_tokens' => (int) ($usage['prompt_tokens'] ?? 0),
+            'cached_prompt_tokens' => (int) ($usage['prompt_tokens_details']['cached_tokens'] ?? 0),
+            'completion_tokens' => (int) ($usage['completion_tokens'] ?? 0),
+            'reasoning_tokens' => (int) ($usage['completion_tokens_details']['reasoning_tokens'] ?? 0),
+        ];
     }
 }
