@@ -24,6 +24,31 @@ Plugin versions refer to the Claude Code plugin in `plugins/mnemon/`.
   Mnemon knows; the **+** beside each field adds a model id or a
   price-comparison provider that is not listed. The **Use for digests** toggle
   says when the provider's key is not set.
+- **Embeddings from providers other than OpenAI.** Three new values for
+  `MNEMON_EMBEDDING_DRIVER`: `voyage` (Voyage AI, `VOYAGE_API_KEY`), `gemini`
+  (Google Gemini, `GEMINI_API_KEY`, default `gemini-embedding-2` at 768
+  dimensions) and `openai-compatible`, for any OpenAI-style `/embeddings`
+  endpoint such as Mistral, Together or a local vLLM
+  (`MNEMON_EMBEDDING_BASE_URL`, `_API_KEY`, `_MODEL`, `_DIMENSIONS`). Voyage
+  and Gemini embed drawers as documents and searches as queries. Every new
+  driver refuses a vector of the wrong width and logs the setting to change.
+- **An optional review queue for digests (`MNEMON_DIGEST_REVIEW`).** `off`
+  (the default) behaves as before. `low` holds proposals below the confidence
+  floor for review instead of dropping them; `all` holds every proposal until
+  the owner approves it. Admin → Review Queue approves a proposal as is,
+  approves it after editing its text, wing or room, or discards it, one at a
+  time or in bulk. An approved proposal becomes an ordinary drawer, with a
+  `review` block in its metadata; the proposal stays, with its original text,
+  linked to that drawer. Held content is redacted like a drawer's, held
+  proposals honour wing restrictions, and `session_digest` fills its
+  `queued_for_review` field (replays included). New wings still go to Pending
+  Wings. This is the "pre-store digest review" item from the Layer 2 design's
+  future work.
+
+### Fixed
+- **The OAuth consent screens are readable in dark mode.** Their colour
+  tokens were never defined, so text, borders and buttons fell back to
+  near-invisible defaults on a dark background. Light mode is unchanged.
 
 ## [1.1.0] — 2026-10-28
 

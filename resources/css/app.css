@@ -11,6 +11,72 @@
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
+/*
+ * Colours for the OAuth consent screens (resources/views/mcp). They use
+ * shadcn-style names (bg-background, text-muted-foreground, bg-primary...)
+ * that nothing defined, so Tailwind generated no colour for them: in dark
+ * mode the text stayed near-black on the near-black page and the Authorize
+ * button had no background. Light and dark values follow the backgrounds the
+ * consent layout already sets on <html>; the layout adds `.dark` from the
+ * system preference.
+ */
+:root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.48 0 0);
+    --accent: oklch(0.95 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --border: oklch(0.88 0 0);
+    --input: oklch(0.8 0 0);
+    --ring: oklch(0.6 0 0);
+}
+
+.dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.78 0 0);
+    --accent: oklch(0.32 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --border: oklch(0.4 0 0);
+    --input: oklch(0.5 0 0);
+    --ring: oklch(0.7 0 0);
+}
+
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+}
+
+/* Unnamed borders on the consent screens take the theme's border colour, not the text colour. */
+.consent :where(*, ::before, ::after) {
+    border-color: var(--color-border);
+}
+
+.consent input[type='checkbox'] {
+    accent-color: var(--color-primary);
+}
+
 /* Wikilink styles */
 .wiki-link {
     color: var(--color-indigo-400);
