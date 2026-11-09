@@ -66,7 +66,8 @@ There is no password reset flow — save it somewhere safe.
 the default so a first run needs no account and spends nothing; retrieval falls
 back to full-text plus a recency boost, which works but is not what the
 benchmark above measures. For the embedded behaviour, set
-`MNEMON_EMBEDDING_DRIVER=openai` and `OPENAI_API_KEY` in `.env`, then
+`MNEMON_EMBEDDING_DRIVER=openai` and `OPENAI_API_KEY` in `.env` (or another
+provider: see [As an embedding backend](#as-an-embedding-backend)), then
 `docker compose exec app php artisan mnemon:reembed` to backfill anything
 already stored.
 
@@ -279,9 +280,15 @@ Configure via `MNEMON_EMBEDDING_DRIVER`:
 | Driver | Model | Dimensions | Notes |
 |---|---|---|---|
 | `openai` | `text-embedding-3-small` | 1536 | The application default (`config/mnemon.php`). Needs `OPENAI_API_KEY`. The Docker Quickstart overrides this to `none` in `.env.docker.example`, so trying Mnemon needs no account and spends nothing. |
+| `ollama` | `nomic-embed-text` | 768 | Fully local — no account, no spend, no data leaving the host. Needs an Ollama server (`MNEMON_OLLAMA_HOST`, default `http://localhost:11434`) with the model pulled. |
+| `voyage` | `voyage-4` (`MNEMON_VOYAGE_MODEL`) | 1024 (`MNEMON_VOYAGE_DIMENSIONS`: 256, 512, 1024 or 2048) | [Voyage AI](https://docs.voyageai.com/docs/embeddings). Needs `VOYAGE_API_KEY`. Drawers are embedded as documents and searches as queries. |
+| `gemini` | `gemini-embedding-2` (`MNEMON_GEMINI_MODEL`) | 768 (`MNEMON_GEMINI_DIMENSIONS`: 128 to 3072; Google recommends 768, 1536 or 3072) | [Google Gemini](https://ai.google.dev/gemini-api/docs/embeddings). Needs `GEMINI_API_KEY`. Drawers are embedded as documents and searches as queries; `gemini-embedding-001` works too. |
+| `openai-compatible` | `MNEMON_EMBEDDING_MODEL` | `MNEMON_EMBEDDING_DIMENSIONS` | Any OpenAI-style `/embeddings` endpoint: Mistral, Together, Jina, DeepInfra, or a local vLLM, LM Studio or llama.cpp server. Set `MNEMON_EMBEDDING_BASE_URL` (the URL before `/embeddings`, such as `https://api.mistral.ai/v1`) and, if the service needs one, `MNEMON_EMBEDDING_API_KEY`. The model and width have no defaults; the width must be what the model returns. |
 | `none` | — | — | Disables embeddings; search falls back to full-text + temporal only. |
 
-| `ollama` | `nomic-embed-text` | 768 | Fully local — no account, no spend, no data leaving the host. Needs an Ollama server (`MNEMON_OLLAMA_HOST`, default `http://localhost:11434`) with the model pulled. |
+A driver that gets back a vector of a different width than configured stores no
+embedding and logs which setting to change, rather than storing a vector that
+semantic search would never compare.
 
 `embedding` is an unconstrained pgvector `vector` column, so drivers of any
 width are storable. Semantic queries filter on `vector_dims(embedding)`, which

@@ -9,7 +9,7 @@ use App\Models\Wing;
 use App\Observers\DrawerObserver;
 use App\Observers\WikiPageObserver;
 use App\Passport\GuardsMalformedClientIds;
-use App\Services\Digest\OpenAiDigestDriver;
+use App\Services\Digest\DigestDrivers;
 use App\Services\DrawerWriteService;
 use App\Services\EmbeddingManager;
 use App\Services\SessionDigestService;
@@ -31,13 +31,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(EmbeddingManager::class);
 
         $this->app->bind(SessionDigestService::class, function ($app) {
-            $driver = match (config('mnemon.digest.driver', 'openai')) {
-                'openai' => new OpenAiDigestDriver,
-                default => throw new \RuntimeException('Unknown digest driver: '.config('mnemon.digest.driver')),
-            };
-
             return new SessionDigestService(
-                $driver,
+                DigestDrivers::current(),
                 $app->make(DrawerWriteService::class),
             );
         });

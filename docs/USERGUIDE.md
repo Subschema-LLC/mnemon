@@ -84,8 +84,9 @@ DB_PASSWORD=...
 OPENAI_API_KEY=sk-...
 
 # Optional — defaults are sensible. "ollama" runs fully local against an
-# Ollama server; see "Re-embedding" below.
-MNEMON_EMBEDDING_DRIVER=openai      # or "ollama", or "none"
+# Ollama server; "voyage", "gemini" and "openai-compatible" use other
+# providers (see "Re-embedding" below).
+MNEMON_EMBEDDING_DRIVER=openai      # or "ollama", "voyage", "gemini", "openai-compatible", "none"
 PASSPORT_PRIVATE_KEY=               # leave blank; passport:install generates files
 PASSPORT_PUBLIC_KEY=
 ```
@@ -751,6 +752,46 @@ exists in the same room is not stored again, and the existing one is returned.
 The same content in a *different* room is kept, since rooms are separate
 contexts. This saves the embedding call as well as the row.
 
+#### The digest model
+
+Each Stop sends the new part of the transcript to `session_digest`, and the server asks a chat
+model which parts are worth keeping. Three providers can do that:
+
+| Driver | Key | Model when none is marked |
+|---|---|---|
+| `openai` (default) | `OPENAI_API_KEY` | `MNEMON_DIGEST_OPENAI_MODEL`, else `MNEMON_LLM_MODEL` |
+| `anthropic` | `ANTHROPIC_API_KEY` | `MNEMON_DIGEST_ANTHROPIC_MODEL` (default `claude-haiku-5-5`) |
+| `openai-compatible` | `MNEMON_DIGEST_API_KEY` (optional) | `MNEMON_DIGEST_MODEL` |
+
+The easiest way to choose is the admin panel: **LLM models** → **New**, pick the provider, pick
+the model from the list, and turn on **Use for digests**. The marked model's provider decides
+which driver runs, so no restart is needed. With the server's key set, the model list comes from
+the provider itself; without it, the list is the models Mnemon knows about. A model that is not
+listed (a fine-tune, a model newer than the list) is added with the **+** beside the field.
+
+Without a marked model, `MNEMON_DIGEST_DRIVER` picks the driver:
+
+```env
+# Anthropic
+MNEMON_DIGEST_DRIVER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+MNEMON_DIGEST_ANTHROPIC_MODEL=claude-haiku-5-5
+
+# Any OpenAI-style chat completions API: OpenRouter, Groq, Together, a local Ollama or vLLM
+MNEMON_DIGEST_DRIVER=openai-compatible
+MNEMON_DIGEST_BASE_URL=https://openrouter.ai/api/v1   # the URL before /chat/completions
+MNEMON_DIGEST_API_KEY=...                             # leave empty for a local server that takes none
+MNEMON_DIGEST_MODEL=...
+# MNEMON_DIGEST_JSON_MODE=false                       # for a server that rejects response_format
+```
+
+The Anthropic driver uses structured outputs, so the API itself holds the answer to the shape
+Mnemon reads. The OpenAI-compatible driver asks for JSON mode where the server supports it, and
+also reads an answer wrapped in a Markdown fence or preceded by a `<think>` block, which some
+open models print. How well a digest picks out what matters depends on the model: a small local
+model is cheaper but may keep less, or keep noise. Running the same backfill trial on two
+models (see [What it costs](#what-it-costs)) is the way to compare.
+
 #### Tuning
 
 `recall_timeout_ms` defaults to 800, which suits a localhost instance. A hosted
@@ -993,7 +1034,7 @@ The **LLM models** page totals them per model and prices them at the model's
 current price, so a price correction re-prices past spending. To compare
 models, run the same project's trial on each (mark one, run, mark the next)
 and compare their rows. A row can be kept for a provider Mnemon cannot digest
-with yet, for price comparison only.
+with (added with the **+** beside the provider), for price comparison only.
 
 The run always has a cap, checked before every call: by default the estimate's
 high figure plus 25%. `--max-tokens <n>` sets it in input plus output tokens;
@@ -1068,7 +1109,7 @@ genuinely recent work. A date in the future is clamped to now.
   if not, which part is broken (tools, config, token, network or the server)
   and the command that fixes it. See [Check the connection](#check-the-connection).
 - **No recall is firing.** Check `~/.mnemon/sessions/<session_id>.json` exists. If `nomemo: true` or `disabled: true`, that session is suppressed. Start a new Claude Code session.
-- **Capture isn't producing drawers.** Tail `~/.mnemon/capture-errors.log`. Common: `OPENAI_API_KEY` missing or rate-limited.
+- **Capture isn't producing drawers.** Tail `~/.mnemon/capture-errors.log`. Common: the digest provider's key (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `MNEMON_DIGEST_BASE_URL` for `openai-compatible`) missing or rate-limited.
 - **`HTTP 401 ... token rejected or expired` in the capture log.** Mint a fresh
   personal access token (see "For other agents") or re-enrol with
   `scripts/mnemon-authorize.sh`.
@@ -1142,6 +1183,43 @@ Performance: the command embeds one record per API round trip, and a timed run m
 > unconstrained `vector` column, and semantic queries filter on `vector_dims(embedding)`.
 > The practical consequence: after switching drivers, previously embedded rows stay
 > invisible to semantic search until `mnemon:reembed` rewrites them.
+
+#### Other providers
+
+Three more drivers cover hosted providers other than OpenAI. Each needs its key in `.env`; the
+model and width have settings of their own.
+
+```env
+# Voyage AI
+MNEMON_EMBEDDING_DRIVER=voyage
+VOYAGE_API_KEY=pa-...
+MNEMON_VOYAGE_MODEL=voyage-4          # default; voyage-4-large, voyage-4-lite, voyage-code-3 ...
+MNEMON_VOYAGE_DIMENSIONS=1024         # default; 256, 512 or 2048 on models that support them
+
+# Google Gemini
+MNEMON_EMBEDDING_DRIVER=gemini
+GEMINI_API_KEY=...
+MNEMON_GEMINI_MODEL=gemini-embedding-2   # default; gemini-embedding-001 also works
+MNEMON_GEMINI_DIMENSIONS=768             # default; Google recommends 768, 1536 or 3072
+
+# Anything with an OpenAI-style /embeddings endpoint
+MNEMON_EMBEDDING_DRIVER=openai-compatible
+MNEMON_EMBEDDING_BASE_URL=https://api.mistral.ai/v1   # the URL before /embeddings
+MNEMON_EMBEDDING_API_KEY=...                          # leave empty for a local server that takes none
+MNEMON_EMBEDDING_MODEL=mistral-embed
+MNEMON_EMBEDDING_DIMENSIONS=1024                      # must be what the model returns
+```
+
+Voyage and Gemini embed stored text and search queries differently, which is how their
+retrieval models are meant to be used: drawers and wiki pages are embedded as documents, and
+`drawer_search` and `recall` embed the query as a query. The `openai-compatible` driver
+embeds both the same way.
+
+Every driver checks the width of what comes back. If it differs from the configured width,
+the drawer is still stored, without an embedding, and the log names the setting to change
+(for example `Set MNEMON_EMBEDDING_DIMENSIONS to 768, then run php artisan mnemon:reembed`).
+The `openai-compatible` driver refuses to start without its base URL, model and width,
+because none of them has a safe default.
 
 To switch drivers:
 
@@ -1419,6 +1497,11 @@ The consent form's CSRF token expired (sessions are short). Restart the OAuth fl
 Symptom: `drawer_add` errors with timeout / 401 / 429.
 
 - OpenAI driver: verify `OPENAI_API_KEY` is set and not rate-limited. Check API quota.
+- `voyage` or `gemini` driver: verify `VOYAGE_API_KEY` or `GEMINI_API_KEY` is set. Without
+  one, drawers are stored with no embedding and the log says which key is missing.
+- `openai-compatible` driver: check `MNEMON_EMBEDDING_BASE_URL` answers
+  (`curl $MNEMON_EMBEDDING_BASE_URL/models`), and that `MNEMON_EMBEDDING_DIMENSIONS` is the
+  width the model returns: a mismatch is logged with the right number.
 - `ollama` driver: check the server is reachable (`curl $MNEMON_OLLAMA_HOST/api/tags`) and
   that `nomic-embed-text` is pulled (`ollama pull nomic-embed-text`). If semantic search
   returns nothing after switching to it, the rows are still embedded at the previous

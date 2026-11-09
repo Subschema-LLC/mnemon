@@ -37,6 +37,30 @@ return [
                 'host' => env('MNEMON_OLLAMA_HOST', 'http://localhost:11434'),
                 'dimensions' => 768,
             ],
+            // Any OpenAI-style /embeddings endpoint: Mistral, Together,
+            // Jina, a local vLLM or LM Studio, and so on. No defaults for the
+            // URL, model or width: they differ for every service, and a
+            // guessed width stores vectors search never finds. The key is
+            // optional, for local servers that take none.
+            'openai-compatible' => [
+                'base_url' => env('MNEMON_EMBEDDING_BASE_URL'),
+                'api_key' => env('MNEMON_EMBEDDING_API_KEY'),
+                'model' => env('MNEMON_EMBEDDING_MODEL'),
+                'dimensions' => is_numeric(env('MNEMON_EMBEDDING_DIMENSIONS')) ? (int) env('MNEMON_EMBEDDING_DIMENSIONS') : null,
+            ],
+            // Voyage AI. Its current models return 1024 dimensions unless
+            // asked for 256, 512 or 2048. Key: VOYAGE_API_KEY.
+            'voyage' => [
+                'model' => env('MNEMON_VOYAGE_MODEL', 'voyage-4'),
+                'dimensions' => (int) env('MNEMON_VOYAGE_DIMENSIONS', 1024),
+            ],
+            // Google Gemini. gemini-embedding-2 returns 3072 dimensions at
+            // most; 768 keeps the index small with little lost (Google
+            // recommends 768, 1536 or 3072). Key: GEMINI_API_KEY.
+            'gemini' => [
+                'model' => env('MNEMON_GEMINI_MODEL', 'gemini-embedding-2'),
+                'dimensions' => (int) env('MNEMON_GEMINI_DIMENSIONS', 768),
+            ],
             'none' => [],
         ],
     ],
@@ -91,6 +115,8 @@ return [
     ],
 
     'digest' => [
+        // openai, anthropic or openai-compatible. A model marked for digests
+        // in the admin panel wins: its provider's driver runs instead.
         'driver' => env('MNEMON_DIGEST_DRIVER', 'openai'),
         'confidence_floor' => env('MNEMON_DIGEST_FLOOR', 0.5),
 
@@ -106,6 +132,22 @@ return [
         // shared model. A model marked for digests in the admin panel wins
         // over both.
         'openai_model' => env('MNEMON_DIGEST_OPENAI_MODEL'),
+
+        // The anthropic driver's model when none is marked. Key:
+        // ANTHROPIC_API_KEY.
+        'anthropic_model' => env('MNEMON_DIGEST_ANTHROPIC_MODEL', 'claude-haiku-5-5'),
+
+        // The openai-compatible driver: any OpenAI-style chat completions
+        // API (OpenRouter, Groq, a local Ollama or vLLM...). base_url is the
+        // URL before /chat/completions; the key is optional, for local
+        // servers. Turn json_mode off for a server that rejects
+        // response_format.
+        'compatible' => [
+            'base_url' => env('MNEMON_DIGEST_BASE_URL'),
+            'api_key' => env('MNEMON_DIGEST_API_KEY'),
+            'model' => env('MNEMON_DIGEST_MODEL'),
+            'json_mode' => (bool) env('MNEMON_DIGEST_JSON_MODE', true),
+        ],
 
         // Seconds to wait on the digest completion. The old hard-coded 20 was
         // too tight for a large transcript and produced `cURL error 28`, which

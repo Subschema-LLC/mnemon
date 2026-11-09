@@ -22,7 +22,7 @@ class LlmModel extends Model
      * Providers with a digest driver. A row for any other provider is kept
      * for pricing comparisons but cannot be the digest model.
      */
-    public const DIGEST_PROVIDERS = ['openai'];
+    public const DIGEST_PROVIDERS = ['openai', 'anthropic', 'openai-compatible'];
 
     private ?object $usageTotals = null;
 
