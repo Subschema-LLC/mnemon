@@ -37,6 +37,30 @@ return [
                 'host' => env('MNEMON_OLLAMA_HOST', 'http://localhost:11434'),
                 'dimensions' => 768,
             ],
+            // Any OpenAI-style /embeddings endpoint: Mistral, Together,
+            // Jina, a local vLLM or LM Studio, and so on. No defaults for the
+            // URL, model or width: they differ for every service, and a
+            // guessed width stores vectors search never finds. The key is
+            // optional, for local servers that take none.
+            'openai-compatible' => [
+                'base_url' => env('MNEMON_EMBEDDING_BASE_URL'),
+                'api_key' => env('MNEMON_EMBEDDING_API_KEY'),
+                'model' => env('MNEMON_EMBEDDING_MODEL'),
+                'dimensions' => is_numeric(env('MNEMON_EMBEDDING_DIMENSIONS')) ? (int) env('MNEMON_EMBEDDING_DIMENSIONS') : null,
+            ],
+            // Voyage AI. Its current models return 1024 dimensions unless
+            // asked for 256, 512 or 2048. Key: VOYAGE_API_KEY.
+            'voyage' => [
+                'model' => env('MNEMON_VOYAGE_MODEL', 'voyage-4'),
+                'dimensions' => (int) env('MNEMON_VOYAGE_DIMENSIONS', 1024),
+            ],
+            // Google Gemini. gemini-embedding-2 returns 3072 dimensions at
+            // most; 768 keeps the index small with little lost (Google
+            // recommends 768, 1536 or 3072). Key: GEMINI_API_KEY.
+            'gemini' => [
+                'model' => env('MNEMON_GEMINI_MODEL', 'gemini-embedding-2'),
+                'dimensions' => (int) env('MNEMON_GEMINI_DIMENSIONS', 768),
+            ],
             'none' => [],
         ],
     ],

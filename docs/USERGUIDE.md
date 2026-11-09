@@ -84,8 +84,9 @@ DB_PASSWORD=...
 OPENAI_API_KEY=sk-...
 
 # Optional — defaults are sensible. "ollama" runs fully local against an
-# Ollama server; see "Re-embedding" below.
-MNEMON_EMBEDDING_DRIVER=openai      # or "ollama", or "none"
+# Ollama server; "voyage", "gemini" and "openai-compatible" use other
+# providers (see "Re-embedding" below).
+MNEMON_EMBEDDING_DRIVER=openai      # or "ollama", "voyage", "gemini", "openai-compatible", "none"
 PASSPORT_PRIVATE_KEY=               # leave blank; passport:install generates files
 PASSPORT_PUBLIC_KEY=
 ```
@@ -1110,6 +1111,43 @@ Performance: the command embeds one record per API round trip, and a timed run m
 > The practical consequence: after switching drivers, previously embedded rows stay
 > invisible to semantic search until `mnemon:reembed` rewrites them.
 
+#### Other providers
+
+Three more drivers cover hosted providers other than OpenAI. Each needs its key in `.env`; the
+model and width have settings of their own.
+
+```env
+# Voyage AI
+MNEMON_EMBEDDING_DRIVER=voyage
+VOYAGE_API_KEY=pa-...
+MNEMON_VOYAGE_MODEL=voyage-4          # default; voyage-4-large, voyage-4-lite, voyage-code-3 ...
+MNEMON_VOYAGE_DIMENSIONS=1024         # default; 256, 512 or 2048 on models that support them
+
+# Google Gemini
+MNEMON_EMBEDDING_DRIVER=gemini
+GEMINI_API_KEY=...
+MNEMON_GEMINI_MODEL=gemini-embedding-2   # default; gemini-embedding-001 also works
+MNEMON_GEMINI_DIMENSIONS=768             # default; Google recommends 768, 1536 or 3072
+
+# Anything with an OpenAI-style /embeddings endpoint
+MNEMON_EMBEDDING_DRIVER=openai-compatible
+MNEMON_EMBEDDING_BASE_URL=https://api.mistral.ai/v1   # the URL before /embeddings
+MNEMON_EMBEDDING_API_KEY=...                          # leave empty for a local server that takes none
+MNEMON_EMBEDDING_MODEL=mistral-embed
+MNEMON_EMBEDDING_DIMENSIONS=1024                      # must be what the model returns
+```
+
+Voyage and Gemini embed stored text and search queries differently, which is how their
+retrieval models are meant to be used: drawers and wiki pages are embedded as documents, and
+`drawer_search` and `recall` embed the query as a query. The `openai-compatible` driver
+embeds both the same way.
+
+Every driver checks the width of what comes back. If it differs from the configured width,
+the drawer is still stored, without an embedding, and the log names the setting to change
+(for example `Set MNEMON_EMBEDDING_DIMENSIONS to 768, then run php artisan mnemon:reembed`).
+The `openai-compatible` driver refuses to start without its base URL, model and width,
+because none of them has a safe default.
+
 To switch drivers:
 
 1. Update `MNEMON_EMBEDDING_DRIVER` in `.env`
@@ -1386,6 +1424,11 @@ The consent form's CSRF token expired (sessions are short). Restart the OAuth fl
 Symptom: `drawer_add` errors with timeout / 401 / 429.
 
 - OpenAI driver: verify `OPENAI_API_KEY` is set and not rate-limited. Check API quota.
+- `voyage` or `gemini` driver: verify `VOYAGE_API_KEY` or `GEMINI_API_KEY` is set. Without
+  one, drawers are stored with no embedding and the log says which key is missing.
+- `openai-compatible` driver: check `MNEMON_EMBEDDING_BASE_URL` answers
+  (`curl $MNEMON_EMBEDDING_BASE_URL/models`), and that `MNEMON_EMBEDDING_DIMENSIONS` is the
+  width the model returns: a mismatch is logged with the right number.
 - `ollama` driver: check the server is reachable (`curl $MNEMON_OLLAMA_HOST/api/tags`) and
   that `nomic-embed-text` is pulled (`ollama pull nomic-embed-text`). If semantic search
   returns nothing after switching to it, the rows are still embedded at the previous
