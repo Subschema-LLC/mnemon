@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\EmbedsQueries;
 use App\Services\Concerns\TokenizesSearchQueries;
 use App\Services\Embeddings\NullDriver;
 use Illuminate\Database\Query\Builder;
@@ -75,7 +76,9 @@ class PalaceSearchService
             return collect();
         }
 
-        $vector = $driver->embed($query);
+        // Providers that embed queries and documents differently get the
+        // query form here; everything stored was embedded as a document.
+        $vector = $driver instanceof EmbedsQueries ? $driver->embedQuery($query) : $driver->embed($query);
         if ($vector === null) {
             Log::warning('PalaceSearchService: embedding returned null — returning empty results.');
 

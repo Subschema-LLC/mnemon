@@ -10,6 +10,14 @@ Plugin versions refer to the Claude Code plugin in `plugins/mnemon/`.
 ## [Unreleased]
 
 ### Added
+- **Embeddings from providers other than OpenAI.** Three new values for
+  `MNEMON_EMBEDDING_DRIVER`: `voyage` (Voyage AI, `VOYAGE_API_KEY`), `gemini`
+  (Google Gemini, `GEMINI_API_KEY`, default `gemini-embedding-2` at 768
+  dimensions) and `openai-compatible`, for any OpenAI-style `/embeddings`
+  endpoint such as Mistral, Together or a local vLLM
+  (`MNEMON_EMBEDDING_BASE_URL`, `_API_KEY`, `_MODEL`, `_DIMENSIONS`). Voyage
+  and Gemini embed drawers as documents and searches as queries. Every new
+  driver refuses a vector of the wrong width and logs the setting to change.
 - **An optional review queue for digests (`MNEMON_DIGEST_REVIEW`).** `off`
   (the default) behaves as before. `low` holds proposals below the confidence
   floor for review instead of dropping them; `all` holds every proposal until
