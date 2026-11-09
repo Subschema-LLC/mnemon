@@ -125,7 +125,7 @@ class OpenAiDigestDriverTest extends TestCase
         $this->assertSame('gpt-picked', $driver->lastModel());
     }
 
-    public function test_a_marked_model_of_a_provider_without_a_driver_is_ignored(): void
+    public function test_a_marked_model_of_another_provider_is_not_sent_to_openai(): void
     {
         config(['mnemon.llm.model' => 'gpt-shared', 'mnemon.digest.openai_model' => null]);
         LlmModel::create(['provider' => 'anthropic', 'model' => 'claude-x', 'is_digest_model' => true]);

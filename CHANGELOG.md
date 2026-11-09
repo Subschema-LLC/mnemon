@@ -9,6 +9,22 @@ Plugin versions refer to the Claude Code plugin in `plugins/mnemon/`.
 
 ## [Unreleased]
 
+### Added
+- **Session digests on Anthropic or any OpenAI-compatible API.** Two new digest
+  drivers beside `openai`: `anthropic` (Messages API with structured outputs,
+  `ANTHROPIC_API_KEY`, default `claude-haiku-5-5`) and `openai-compatible`
+  (OpenRouter, Groq, a local Ollama or vLLM: `MNEMON_DIGEST_BASE_URL`,
+  `MNEMON_DIGEST_API_KEY`, `MNEMON_DIGEST_MODEL`, `MNEMON_DIGEST_JSON_MODE`).
+  The provider of the model marked for digests in the admin panel decides
+  which driver runs; with none marked, `MNEMON_DIGEST_DRIVER` does.
+  `brain_status` publishes the digest `provider` beside the model.
+- **LLM models form: pick from a list, or add your own.** Provider and model
+  are dropdowns. The model list comes from the provider's own models endpoint
+  when the server holds its key (cached for an hour), else from the models
+  Mnemon knows; the **+** beside each field adds a model id or a
+  price-comparison provider that is not listed. The **Use for digests** toggle
+  says when the provider's key is not set.
+
 ## [1.1.0] — 2026-10-28
 
 ### Added

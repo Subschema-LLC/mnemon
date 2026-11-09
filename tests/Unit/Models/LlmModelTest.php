@@ -44,7 +44,7 @@ class LlmModelTest extends TestCase
     public function test_a_provider_without_a_driver_is_never_saved_as_the_digest_model(): void
     {
         $openai = LlmModel::create(['provider' => 'openai', 'model' => 'a', 'is_digest_model' => true]);
-        $other = LlmModel::create(['provider' => 'anthropic', 'model' => 'c', 'is_digest_model' => true]);
+        $other = LlmModel::create(['provider' => 'mistral', 'model' => 'c', 'is_digest_model' => true]);
 
         // Saved outside the form, it still cannot take the mark from the real one.
         $this->assertFalse($other->fresh()->is_digest_model);

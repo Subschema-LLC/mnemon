@@ -10,7 +10,7 @@ use App\Models\LlmModel;
 use App\Models\Room;
 use App\Models\WikiPage;
 use App\Models\Wing;
-use App\Services\Digest\OpenAiDigestDriver;
+use App\Services\Digest\DigestDrivers;
 use Closure;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\Schema;
@@ -138,7 +138,7 @@ class BrainStatusTool extends Tool
      */
     private function digestStatus(?array $readableWingIds, ?array $projects): array
     {
-        $driver = new OpenAiDigestDriver;
+        $driver = DigestDrivers::current();
 
         $wings = Wing::query()
             ->when($readableWingIds !== null, fn ($q) => $q->whereIn('id', $readableWingIds))
@@ -161,6 +161,7 @@ class BrainStatusTool extends Tool
         $price = fn (?string $v) => $v === null ? null : (float) $v;
 
         $digest = [
+            'provider' => $driver->provider(),
             'model' => $model,
             'price_in_per_mtok' => $price($row?->price_in_per_mtok),
             'price_cached_in_per_mtok' => $price($row?->price_cached_in_per_mtok),
