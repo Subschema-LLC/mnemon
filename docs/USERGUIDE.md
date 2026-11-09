@@ -900,6 +900,39 @@ Type `@nomemo` at the start of any prompt to suppress both recall and capture fo
 In Filament: `/admin` → Drawers → filter by `source = "claude-code:session_digest"`.
 For new-wing proposals: `/admin` → Access Control → Pending Wings.
 
+#### The review queue (optional)
+
+By default a digest files what it is confident about and drops the rest. To
+work captured material over before it settles into the palace, set
+`MNEMON_DIGEST_REVIEW`:
+
+| Value | What a digest does |
+|---|---|
+| `off` (default) | Proposals at or above `MNEMON_DIGEST_FLOOR` become drawers; the rest are dropped. Unchanged from before. |
+| `low` | The same, but proposals below the floor wait in the review queue instead of being dropped. |
+| `all` | Every proposal waits: nothing a digest proposes becomes a drawer until you approve it. |
+
+New wings go to Pending Wings in every mode, as before. Held proposals follow
+the same filing rules and wing restrictions as drawers (a device restricted to
+some wings never holds anything outside them), and their content is redacted
+the same way before it is stored.
+
+Review them at `/admin` → **Review Queue** (the menu shows how many wait):
+
+- **Approve** files the proposal as a drawer, exactly as proposed.
+- **Edit and Approve** lets you change its text, wing or room first. The wing
+  must already exist; a room you name is created if the wing lacks it.
+- **Discard** turns it away. Several at once: select them and use the bulk
+  actions.
+
+Nothing is rewritten: an approved proposal becomes an ordinary drawer (the
+same redaction and deduplication as any write), with a `review` block in its
+metadata naming the proposal, who approved it and whether it was edited. The
+proposal stays in the queue's history (filter by status) with the text as the
+model proposed it, linked to the drawer it became. `session_digest`'s
+`queued_for_review` lists what each digest held, and a replayed slice reports
+it again.
+
 ### Bring in your history
 
 Hooks only capture sessions from the day they are installed. The backfill

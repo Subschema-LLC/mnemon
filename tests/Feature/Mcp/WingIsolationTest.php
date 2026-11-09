@@ -479,6 +479,36 @@ class WingIsolationTest extends TestCase
         $this->assertDoesNotMatchRegularExpression(self::LEAK, $res->getContent());
     }
 
+    public function test_session_digest_replay_does_not_report_another_wings_held_proposals(): void
+    {
+        // The review queue's proposals are reported on a replay too, so they
+        // need the same wing filter as the drawers.
+        config(['mnemon.digest.review' => 'low']);
+        $this->mockDigest([
+            ['content' => 'held for an unrestricted device', 'wing_slug' => 'personal', 'room_slug' => 'diary', 'confidence' => 0.2],
+        ], new \ArrayObject);
+
+        $args = [
+            'session_id' => 'sess-held',
+            'harness' => 'claude-code',
+            'turn_range' => ['start' => 0, 'end' => 3],
+            'transcript' => 'anything',
+            'project_filing' => 'model',
+        ];
+
+        $first = $this->mcpCall('session_digest', $args, ['mcp:use']);
+        $first->assertOk();
+        $this->assertSame(['personal'], array_column($first->json('result.structuredContent.queued_for_review'), 'wing'));
+
+        $this->app['auth']->forgetGuards();
+
+        $res = $this->mcpCall('session_digest', $args, ['mcp:use'], self::RESTRICTED);
+
+        $res->assertOk();
+        $this->assertSame([], $res->json('result.structuredContent.queued_for_review'));
+        $this->assertDoesNotMatchRegularExpression(self::LEAK, $res->getContent());
+    }
+
     // ---------------------------------------------------- unrestricted sanity
 
     public static function unrestrictedRows(): array

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\DigestUsage;
 use App\Models\Drawer;
+use App\Models\DrawerProposal;
 use App\Models\Room;
 use App\Models\SessionDigest;
 use App\Models\WikiPendingWing;
@@ -24,6 +25,9 @@ class SessionDigestService
      */
     public const UNFILED_WING = 'unfiled';
 
+    /** Where proposals wait when the review queue is on (MNEMON_DIGEST_REVIEW). */
+    protected DrawerProposalService $proposals;
+
     /**
      * @param  object  $llm  Anything with a `digest(string $transcript, array $context): array` method.
      *                       It throws DigestUnavailable when the model could not be asked;
@@ -33,7 +37,10 @@ class SessionDigestService
     public function __construct(
         protected object $llm,
         protected DrawerWriteService $drawerWriter,
-    ) {}
+        ?DrawerProposalService $proposals = null,
+    ) {
+        $this->proposals = $proposals ?? app(DrawerProposalService::class);
+    }
 
     /**
      * @param  array{start:int,end:int}  $turnRange
@@ -205,10 +212,15 @@ class SessionDigestService
     ): array {
         $persisted = [];
         $pendingWings = [];
+        $queued = [];
         $dropped = 0;
+        $reviewMode = DrawerProposalService::mode();
 
         foreach ($proposals as $p) {
-            if (($p['confidence'] ?? 0) < $floor) {
+            // Below the floor a proposal is dropped, unless the review queue
+            // is on: then it waits for the owner instead (see the end of the loop).
+            $belowFloor = ($p['confidence'] ?? 0) < $floor;
+            if ($belowFloor && $reviewMode === 'off') {
                 continue;
             }
 
@@ -242,6 +254,11 @@ class SessionDigestService
             }
 
             if (! empty($p['propose_new_wing'])) {
+                // New wings already wait for review, in Pending Wings; a
+                // below-floor one is dropped there as it always was.
+                if ($belowFloor) {
+                    continue;
+                }
                 $row = WikiPendingWing::create([
                     'wing_slug' => $p['wing_slug'],
                     'wing_name' => Str::headline($p['wing_slug']),
@@ -277,12 +294,46 @@ class SessionDigestService
             $roomSlug = $p['room_slug'] ?? 'notes';
             $existingRoom = Room::where('slug', $roomSlug)->where('wing_id', $wing->id)->first();
 
-            if (! $existingRoom && empty($p['propose_new_room'])) {
+            $newRoom = ! $existingRoom && ! empty($p['propose_new_room']);
+            if (! $existingRoom && ! $newRoom) {
                 // The model named a room the wing lacks without proposing it.
                 // Skipping it silently dropped the drawer; the wing is right,
                 // so keep the drawer and file it where any wing files by default.
                 $roomSlug = 'notes';
-            } elseif (! $existingRoom) {
+            }
+
+            // The review queue: hold the drawer for the owner instead of
+            // writing it. A proposed new room is created only on approval.
+            $holdReason = $belowFloor ? DrawerProposal::REASON_BELOW_FLOOR
+                : ($reviewMode === 'all' ? DrawerProposal::REASON_REVIEW_ALL : null);
+            if ($holdReason !== null) {
+                $held = $this->proposals->queue([
+                    'reason' => $holdReason,
+                    'wing_slug' => $wing->slug,
+                    'room_slug' => $roomSlug,
+                    'propose_new_room' => $newRoom,
+                    'content' => (string) $p['content'],
+                    'source' => "{$harness}:session_digest",
+                    'metadata' => array_filter([
+                        'captured_via' => 'session_digest',
+                        'harness' => $harness,
+                        'session_id' => $sessionId,
+                        'confidence' => $p['confidence'] ?? null,
+                        'suggested_wing' => $suggestedWing,
+                        'rationale' => $p['rationale'] ?? null,
+                    ], fn ($v) => $v !== null),
+                    'confidence' => isset($p['confidence']) ? (float) $p['confidence'] : null,
+                    'session_id' => $sessionId,
+                    'turn_start' => (int) $turnRange['start'],
+                    'turn_end' => (int) $turnRange['end'],
+                    'occurred_at' => $occurredAt,
+                ]);
+                $queued[] = ['id' => $held->id, 'wing' => $held->wing_slug, 'room' => $held->room_slug, 'reason' => $held->reason];
+
+                continue;
+            }
+
+            if ($newRoom) {
                 // Pre-create the room with metadata so DrawerWriteService::createDrawer
                 // finds it via firstOrCreate without overwriting the metadata flag.
                 Room::create([
@@ -321,7 +372,7 @@ class SessionDigestService
         return [
             'proposals' => $proposals,
             'persisted' => $persisted,
-            'queued_for_review' => [],
+            'queued_for_review' => $queued,
             'pending_wings' => $pendingWings,
             'dropped_outside_wings' => $dropped,
             'turn_end' => (int) $turnRange['end'],
@@ -481,10 +532,23 @@ class SessionDigestService
             ->values()
             ->all();
 
+        // What the first run held for review, under the same wing filter.
+        $queued = DrawerProposal::query()
+            ->where('session_id', $sessionId)
+            ->where('turn_start', $digest->turn_start)
+            ->where('turn_end', $digest->turn_end)
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (DrawerProposal $q) => $allowedWingPatterns === null
+                || WingPatterns::matches($q->wing_slug, $allowedWingPatterns))
+            ->map(fn (DrawerProposal $q) => ['id' => $q->id, 'wing' => $q->wing_slug, 'room' => $q->room_slug, 'reason' => $q->reason])
+            ->values()
+            ->all();
+
         return [
             'proposals' => [],
             'persisted' => $persisted,
-            'queued_for_review' => [],
+            'queued_for_review' => $queued,
             'pending_wings' => [],
             'dropped_outside_wings' => 0,
             'replayed' => true,
