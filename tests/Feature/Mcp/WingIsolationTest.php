@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Mcp;
 
+use App\Models\Document;
 use App\Models\Drawer;
 use App\Models\EntityRelationship;
 use App\Models\Room;
@@ -11,6 +12,7 @@ use App\Models\Wing;
 use App\Services\DrawerWriteService;
 use App\Services\SessionDigestService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Concerns\MakesMcpRequests;
@@ -36,6 +38,9 @@ class WingIsolationTest extends TestCase
 
     private const LEAK = '/personal|psecret|diary/i';
 
+    /** A small CSV for document_add: "a,b\n1,2\n". */
+    private const CSV = 'YSxiCjEsMgo=';
+
     private Drawer $workDrawer;
 
     private Drawer $personalDrawer;
@@ -44,6 +49,7 @@ class WingIsolationTest extends TestCase
     {
         parent::setUp();
         config(['mnemon.embedding.driver' => 'none']);
+        Storage::fake('local');
 
         $work = Wing::create(['name' => 'Work', 'slug' => 'work']);
         $workRoom = Room::create(['wing_id' => $work->id, 'name' => 'Notes', 'slug' => 'notes']);
@@ -118,6 +124,7 @@ class WingIsolationTest extends TestCase
             'wiki_graph own' => ['tool', 'wiki_graph', ['start_page' => 'work']],
             'context_set own' => ['tool', 'context_set', ['name' => 'work:new', 'content' => 'a new work page']],
             'drawer_add own' => ['tool', 'drawer_add', ['wing' => 'work', 'room' => 'notes', 'content' => 'a new work note']],
+            'document_add own' => ['tool', 'document_add', ['wing' => 'work', 'file_name' => 'w.csv', 'content_base64' => self::CSV]],
             'resource drawer own' => ['resource', 'mnemon://drawer/{work_drawer}', []],
             'resource wiki own' => ['resource', 'mnemon://wiki/work', []],
             'resource wing own' => ['resource', 'mnemon://wing/work', []],
@@ -156,6 +163,8 @@ class WingIsolationTest extends TestCase
             'context_set trashed' => ['tool', 'context_set', 'name', 'personal:trashed', 'personal:ghost', ['content' => 'x']],
             'drawer_add' => ['tool', 'drawer_add', 'wing', 'personal', 'personal-ghost', ['room' => 'diary', 'content' => 'x', 'occurred_at' => '2026-01-01T00:00:00Z']],
             'drawer_add by project' => ['tool', 'drawer_add', 'project', 'personal', 'personal-ghost', ['room' => 'diary', 'content' => 'x']],
+            'document_add' => ['tool', 'document_add', 'wing', 'personal', 'personal-ghost', ['room' => 'diary', 'file_name' => 'p.csv', 'content_base64' => self::CSV]],
+            'document_add by project' => ['tool', 'document_add', 'project', 'personal', 'personal-ghost', ['file_name' => 'p.csv', 'content_base64' => self::CSV]],
             'resource drawer' => ['resource', 'mnemon://drawer/{arg}', null, '{personal_drawer}', 999999, []],
             'resource wiki' => ['resource', 'mnemon://wiki/{arg}', null, 'personal', 'personal-ghost', []],
             'resource wing' => ['resource', 'mnemon://wing/{arg}', null, 'personal', 'personal-ghost', []],
@@ -517,6 +526,7 @@ class WingIsolationTest extends TestCase
             'drawer_search' => ['tool', 'drawer_search', ['query' => 'alpha'], 'PSECRET'],
             'drawer_get' => ['tool', 'drawer_get', ['id' => '{personal_drawer}'], 'PSECRET'],
             'drawer_add' => ['tool', 'drawer_add', ['wing' => 'personal', 'room' => 'diary', 'content' => 'new'], '"id"'],
+            'document_add' => ['tool', 'document_add', ['wing' => 'personal', 'room' => 'diary', 'file_name' => 'p.csv', 'content_base64' => self::CSV], '"status":"processed"'],
             'brain_status' => ['tool', 'brain_status', [], 'personal:journal'],
             'palace_wake_up' => ['tool', 'palace_wake_up', [], 'personal:journal'],
             'recall' => ['tool', 'recall', ['prompt' => 'alpha PSECRET page body journal pending drawers'], 'PSECRET'],
@@ -611,6 +621,7 @@ class WingIsolationTest extends TestCase
             'drawers' => Drawer::withTrashed()->orderBy('id')->get(['id', 'room_id', 'content', 'tier', 'deleted_at'])->toArray(),
             'rooms' => Room::orderBy('id')->pluck('slug', 'id')->all(),
             'wings' => Wing::orderBy('id')->pluck('slug', 'id')->all(),
+            'documents' => Document::orderBy('id')->get(['id', 'room_id', 'sha256', 'status'])->toArray(),
             'pages' => WikiPage::withTrashed()->orderBy('id')
                 ->get(['id', 'name', 'content', 'related', 'revision_count', 'deleted_at'])->toArray(),
         ];

@@ -54,12 +54,20 @@
 #      FAKE_PLUGIN_VERSION (plugin version to advertise in the wake reply),
 #      FAKE_DEVICE_MODE (how the device grant resolves:
 #                        success | denied | expired; default success),
+#      POST /api/documents (the upload endpoint) logs one line per upload,
+#                      "UPLOAD {json of the form fields and file name/size}",
+#                      and answers as the real endpoint does: 422 for a .txt,
+#                      201 with status "failed" for a name containing
+#                      "broken", 200 with created false for one containing
+#                      "again", else 201 processed,
 #      FAKE_STATE_DIR (directory where the server records that a refresh
 #                      happened; ThreadingHTTPServer serves each request on its
 #                      own thread, so the filesystem is the shared state).
 
 set -u
 exec python3 - <<'PY'
+import email.parser
+import email.policy
 import http.server
 import json
 import os
@@ -177,6 +185,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
             '"access_token":"%s","refresh_token":"refresh-2"}' % REFRESHED_TOKEN
         ).encode())
 
+    def _upload(self, body):
+        # Parse the multipart form the way a server would, so the test sees
+        # exactly the fields and file name curl sent.
+        ctype = self.headers.get("Content-Type", "")
+        msg = email.parser.BytesParser(policy=email.policy.HTTP).parsebytes(
+            b"Content-Type: " + ctype.encode() + b"\r\n\r\n" + body)
+        fields, name, size = {}, "", 0
+        for part in msg.iter_parts():
+            key = part.get_param("name", header="content-disposition")
+            if key == "file":
+                name = part.get_filename() or ""
+                size = len(part.get_payload(decode=True) or b"")
+            elif key:
+                fields[key] = part.get_content()
+        self._log_body(b"UPLOAD ", json.dumps(dict(fields, file=name, size=size), sort_keys=True).encode())
+
+        if name.endswith(".txt"):
+            self._reply(422, b'{"error":"Mnemon does not read .txt files; it reads docx, pptx, pdf, csv, png, jpg, webp, svg."}')
+            return
+        wing = fields.get("wing") or "project-" + fields.get("project", "").lower()
+        room = fields.get("room") or "documents"
+        status, err, created, code = "processed", None, True, 201
+        if "broken" in name:
+            status, err = "failed", "The PDF could not be read; it may be damaged."
+        if "again" in name:
+            created, code = False, 200
+        self._reply(code, json.dumps({
+            "id": 1, "name": name, "type": name.rsplit(".", 1)[-1], "size": size,
+            "status": status, "error": err, "wing": wing, "room": room,
+            "chunks": 0 if err else 2, "drawer_ids": [] if err else [1, 2], "created": created,
+        }).encode())
+
     def do_GET(self):
         # The instance's landing page, which is all mnemon-doctor's reachability
         # check asks for. FAKE_STATUS governs /mcp only: a token rejection there
@@ -217,6 +257,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if self.headers.get("Authorization", "") != "Bearer " + REFRESHED_TOKEN:
                 self._reply(401, b'{"message":"Unauthenticated."}')
                 return
+
+        if self.path.startswith("/api/documents"):
+            self._upload(body)
+            return
 
         self._log_body(b"", body)
 

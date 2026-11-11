@@ -96,19 +96,35 @@ class LlmModel extends Model
     }
 
     /**
-     * Calls and tokens recorded against this model, as one row.
+     * Digest calls and their tokens recorded against this model, as one row.
+     * Digests only: these averages calibrate the backfill estimate, and a
+     * vision caption's tokens say nothing about a digest's.
      *
      * @return object{calls: int, prompt_tokens: int, cached_prompt_tokens: int, completion_tokens: int}
      */
     public function usageTotals(): object
     {
-        return $this->usageTotals ??= $this->queryUsageTotals();
+        return $this->usageTotals ??= $this->queryUsageTotals(DigestUsage::PURPOSE_DIGEST);
     }
 
-    private function queryUsageTotals(): object
+    /**
+     * Every recorded call against this model, digests and vision captions
+     * alike: what it has cost.
+     *
+     * @return object{calls: int, prompt_tokens: int, cached_prompt_tokens: int, completion_tokens: int}
+     */
+    public function allUsageTotals(): object
+    {
+        return $this->allUsageTotals ??= $this->queryUsageTotals(null);
+    }
+
+    private ?object $allUsageTotals = null;
+
+    private function queryUsageTotals(?string $purpose): object
     {
         $row = DB::table('digest_usages')
             ->where('provider', $this->provider)->where('model', $this->model)
+            ->when($purpose !== null, fn ($q) => $q->where('purpose', $purpose))
             ->selectRaw('COUNT(*) as calls, COALESCE(SUM(prompt_tokens),0) as prompt_tokens, COALESCE(SUM(cached_prompt_tokens),0) as cached_prompt_tokens, COALESCE(SUM(completion_tokens),0) as completion_tokens')
             ->first();
 

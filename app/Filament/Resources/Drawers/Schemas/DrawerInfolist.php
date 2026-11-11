@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Drawers\Schemas;
 
+use App\Filament\Resources\Documents\DocumentResource;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
@@ -23,6 +24,13 @@ class DrawerInfolist
                     ->label('Room'),
                 TextEntry::make('source')
                     ->placeholder('—'),
+                // Set on drawers extracted from an uploaded file.
+                TextEntry::make('document.original_name')
+                    ->label('From document')
+                    ->url(fn ($record) => $record?->document_id !== null
+                        ? DocumentResource::getUrl('view', ['record' => $record->document_id])
+                        : null)
+                    ->visible(fn ($record): bool => $record?->document_id !== null),
                 TextEntry::make('tier')
                     ->badge()
                     ->color(fn (?string $state): string => match ($state) {

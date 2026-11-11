@@ -59,12 +59,43 @@ class OpenAiDigestDriver extends DigestDriver
 
     protected function send(string $model, string $system, string $user): Response
     {
+        return $this->post($this->body($model, $system, $user));
+    }
+
+    protected function sendImage(string $model, string $prompt, string $mime, string $base64): Response
+    {
+        return $this->post($this->imageBody($model, $prompt, $mime, $base64));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function imageBody(string $model, string $prompt, string $mime, string $base64): array
+    {
+        return [
+            'model' => $model,
+            'max_completion_tokens' => (int) config('mnemon.documents.vision_max_tokens', 2000),
+            'messages' => [[
+                'role' => 'user',
+                'content' => [
+                    ['type' => 'text', 'text' => $prompt],
+                    ['type' => 'image_url', 'image_url' => ['url' => "data:{$mime};base64,{$base64}"]],
+                ],
+            ]],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     */
+    private function post(array $body): Response
+    {
         $http = Http::timeout((int) config('mnemon.digest.timeout', 60));
         if (($key = $this->apiKey()) !== null && $key !== '') {
             $http = $http->withToken($key);
         }
 
-        return $http->post($this->endpoint(), $this->body($model, $system, $user));
+        return $http->post($this->endpoint(), $body);
     }
 
     protected function contentFrom(Response $response): ?string

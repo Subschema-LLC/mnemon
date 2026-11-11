@@ -54,6 +54,26 @@ class AnthropicDigestDriver extends DigestDriver
             ]);
     }
 
+    protected function sendImage(string $model, string $prompt, string $mime, string $base64): Response
+    {
+        return Http::timeout((int) config('mnemon.digest.timeout', 60))
+            ->withHeaders([
+                'x-api-key' => config('services.anthropic.api_key'),
+                'anthropic-version' => self::API_VERSION,
+            ])
+            ->post(self::ENDPOINT, [
+                'model' => $model,
+                'max_tokens' => (int) config('mnemon.documents.vision_max_tokens', 2000),
+                'messages' => [[
+                    'role' => 'user',
+                    'content' => [
+                        ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => $base64]],
+                        ['type' => 'text', 'text' => $prompt],
+                    ],
+                ]],
+            ]);
+    }
+
     protected function contentFrom(Response $response): ?string
     {
         $stop = $response->json('stop_reason');

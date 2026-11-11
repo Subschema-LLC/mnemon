@@ -54,7 +54,7 @@ Endpoint: `POST /mcp` (Streamable HTTP, JSON-RPC 2.0). Built on [`laravel/mcp`](
 
 Authentication: OAuth 2.1 via Passport. Clients register via Dynamic Client Registration (DCR) or manually via `php artisan passport:client`. The consent screen (`/oauth/authorize`) lets the user grant access and restrict which wings the client can reach.
 
-Single scope: **`mcp:use`** — required for all 14 tools. The `laravel/mcp` package auto-injects this via `Registrar::ensureMcpScope()`. Wing restrictions (`mcp_client_restrictions`, keyed by OAuth client) are the real per-agent isolation mechanism. Every tool, resource and prompt honours them, and an item in a hidden wing must answer exactly like a missing one; `tests/Feature/Mcp/WingIsolationTest.php` holds one row per surface — add a row when you add a surface.
+Single scope: **`mcp:use`** — required for all 15 tools. The `laravel/mcp` package auto-injects this via `Registrar::ensureMcpScope()`. Wing restrictions (`mcp_client_restrictions`, keyed by OAuth client) are the real per-agent isolation mechanism. Every tool, resource and prompt honours them, and an item in a hidden wing must answer exactly like a missing one; `tests/Feature/Mcp/WingIsolationTest.php` holds one row per surface — add a row when you add a surface.
 
 **Layer 2 tools (automatic memory for Claude Code):** `recall` (per-prompt context injection, called by `mnemon-recall.sh`) and `session_digest` (end-of-session transcript digestion, called by `mnemon-capture.sh`) extend the original 12 tools.
 
@@ -69,6 +69,12 @@ Authentication is handled by Laravel Passport (OAuth 2.1):
 - **Access tokens** carry the single scope `mcp:use`.
 - **Per-client wing restrictions** are captured at the consent screen and stored in `mcp_client_restrictions` (primary key `client_id`), so they apply to every token the client holds, including refreshed ones. The legacy `mcp_token_restrictions` table (FK → `oauth_access_tokens`) is no longer written; it is read only as a fallback when no client row exists.
 - Token revocation via the Filament admin panel under OAuth Access Tokens.
+
+### Documents
+
+- **Document** — an uploaded file (docx, pptx, pdf, csv, png, jpg, webp, svg) and its provenance. The original is stored on `mnemon.documents.disk` at `documents/{sha256}.{ext}`; its text is extracted and written as drawers (`drawers.document_id`) through `DrawerWriteService`, so redaction and embedding are the same as any drawer's.
+- `App\Services\Documents\DocumentIngestService` is the one path in, used by the Filament **Documents** resource, `POST /api/documents` (`DocumentUploadController`, same bearer tokens and wing restrictions as `/mcp`) and the `document_add` tool. Callers check wing access; the service does not.
+- Type detection is by content (`DocumentType::detect`), not by the name alone. Office XML goes through `SafeXml` (no DOCTYPE, no network, only simple literal entities) and `OfficeZip` (size limits). Images are described by `ImageCaptioner` (bound to `VisionImageCaptioner`, the digest driver's `describeImage()`); fake it in tests. Vision calls are recorded as `DigestUsage` rows with `purpose = vision`.
 
 ### Audit Trail
 
@@ -85,7 +91,7 @@ app/
     Prompts/       — MCP prompt handlers
     Concerns/      — Shared traits (RequiresScope, RequiresWingAccess, ResolvesAgentSource, etc.)
     Support/       — BrainSessionLogger and other support classes
-  Models/          — Eloquent models (Wing, Room, Drawer, WikiPage, BrainSession, McpClientRestriction, McpTokenRestriction (legacy), WikiPendingWing, DrawerProposal)
+  Models/          — Eloquent models (Wing, Room, Drawer, Document, WikiPage, BrainSession, McpClientRestriction, McpTokenRestriction (legacy), WikiPendingWing, DrawerProposal)
   Console/
     Commands/      — Artisan commands (includes InstallClaudeCodeHooks.php for Layer 2 setup)
   Providers/

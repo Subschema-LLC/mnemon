@@ -3993,6 +3993,61 @@ bf_has "2 dropped" "backfill run: a wing denial is counted as a drop"
 rf_stop_all
 rm -rf "$BR" "$BR_STATE_SRV"
 
+# ------------------------------------------------------------- upload script
+# mnemon-upload.sh posts each file to /api/documents as multipart, with the
+# device's credentials, and reports each file's outcome.
+UPLOAD_SH="$THIS_DIR/../../plugins/mnemon/scripts/mnemon-upload.sh"
+UP_PORT=$(rf_free_port); UP_LOG="$MNEMON_DIR/up.log"; UP_STATE=$(mktemp -d)
+UP_DIR=$(mktemp -d)
+printf 'a,b\n1,2\n' > "$UP_DIR/team.csv"
+# A name curl's -F would otherwise split on: ; and , and a quote.
+printf 'x' > "$UP_DIR/odd; name, \"q\".csv"
+printf 'x' > "$UP_DIR/notes.txt"
+printf 'x' > "$UP_DIR/broken.pdf"
+
+rf_start "$UP_PORT" "$UP_LOG" "$UP_STATE" FAKE_EXPIRE_FIRST=1
+rf_config "$UP_PORT"
+up_out=$(cd "$UP_DIR" && bash "$UPLOAD_SH" --wing work --room people --note '@not-a-file' team.csv "odd; name, \"q\".csv" 2>&1)
+up_rc=$?
+assert_eq "$up_rc" "0" "upload: exits 0 when every file is extracted"
+assert_eq "$(grep -c '^OAUTH_TOKEN' "$UP_LOG")" "1" "upload: an expired token is refreshed once"
+assert_eq "$(grep '^UPLOAD ' "$UP_LOG" | sed -n 1p | sed 's/^UPLOAD //' | jq -c '{file,size,wing,room,note}')" \
+    '{"file":"team.csv","size":8,"wing":"work","room":"people","note":"@not-a-file"}' \
+    "upload: sends the file and the fields, a leading @ as text"
+# curl, like a browser, sends a quote in a file name as %22; ; and , arrive as
+# they are. Unescaped, the quote would end -F's quoted name and fail the upload.
+assert_eq "$(grep '^UPLOAD ' "$UP_LOG" | sed -n 2p | sed 's/^UPLOAD //' | jq -r .file)" 'odd; name, %22q%22.csv' \
+    "upload: a file name with ; , and a quote is sent whole"
+case "$up_out" in
+    *"team.csv: 2 drawers in work/people"*) PASS=$((PASS+1)); printf '  ok: upload: reports drawers per file\n';;
+    *) FAIL=$((FAIL+1)); printf '  FAIL: upload: unexpected report: %s\n' "$up_out";;
+esac
+
+up_out=$(cd "$UP_DIR" && bash "$UPLOAD_SH" --project Atlas notes.txt broken.pdf missing.pdf 2>&1)
+up_rc=$?
+assert_eq "$up_rc" "1" "upload: exits 1 when any file is refused or not extracted"
+case "$up_out" in
+    *"notes.txt: refused (HTTP 422): Mnemon does not read .txt"*"broken.pdf: stored in project-atlas/documents, extraction failed: The PDF could not be read"*"missing.pdf: not a readable file"*)
+        PASS=$((PASS+1)); printf '  ok: upload: reports refusals, failures and missing files\n';;
+    *) FAIL=$((FAIL+1)); printf '  FAIL: upload: unexpected failure report: %s\n' "$up_out";;
+esac
+assert_eq "$(grep '^UPLOAD ' "$UP_LOG" | tail -1 | sed 's/^UPLOAD //' | jq -r .project)" "Atlas" "upload: --project is sent as project"
+
+# With no --wing or --project, the current repository names the project.
+git -C "$UP_DIR" init -q 2>/dev/null
+git -C "$UP_DIR" remote add origin git@github.com:acme/widget-repo.git
+up_out=$(cd "$UP_DIR" && bash "$UPLOAD_SH" team.csv 2>&1)
+assert_eq "$(grep '^UPLOAD ' "$UP_LOG" | tail -1 | sed 's/^UPLOAD //' | jq -r .project)" "widget-repo" "upload: defaults to the repository's project"
+
+up_out=$(cd "$(mktemp -d)" && bash "$UPLOAD_SH" "$UP_DIR/team.csv" 2>&1)
+assert_eq "$?" "2" "upload: outside a repository with no wing is a usage error"
+up_out=$(bash "$UPLOAD_SH" --wing a --project b "$UP_DIR/team.csv" 2>&1)
+assert_eq "$?" "2" "upload: --wing and --project together are a usage error"
+up_out=$(bash "$UPLOAD_SH" --wing a 2>&1)
+assert_eq "$?" "2" "upload: no files is a usage error"
+rf_stop_all
+rm -rf "$UP_DIR" "$UP_STATE"
+
 # Test 10: capture hook with no token short-circuits.
 rm -f "$MNEMON_DIR/config.json"
 # A HOME of its own: mnemon_token falls back to ~/.claude.json.

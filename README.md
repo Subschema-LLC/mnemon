@@ -122,7 +122,7 @@ Mnemon has two layers:
 - **The palace** — verbatim, append-only storage organised as **wings → rooms → drawers**. Nothing is summarised at ingest and nothing is overwritten. Content is stored as written, with one deliberate exception: `ContentSanitizer` redacts API keys, tokens and credentials embedded in URLs before the drawer is saved. Retrieval is hybrid: pgvector cosine distance + Postgres full-text search + a temporal recency boost, weighted and merged.
 - **The wiki** — synthesised, structured pages that distill what's in the palace into knowledge you can read directly. Wiki pages are typed (`person:`, `project:`, `concept:`, `decision:`, `synthesis:`), markdown-rendered, and tracked for staleness. Compiling is agent-triggered — Mnemon counts how many new drawers have landed since a page was last compiled, but nothing rewrites pages on a schedule.
 
-Agents read and write both layers via 14 MCP tools. Humans manage everything through a Filament admin panel at `/admin`, browse the wiki at `/wiki`, and explore the palace at `/palace`.
+Agents read and write both layers via 15 MCP tools. Humans manage everything through a Filament admin panel at `/admin`, browse the wiki at `/wiki`, and explore the palace at `/palace`.
 
 The name is from [Mnemosyne](https://en.wikipedia.org/wiki/Mnemosyne) — the Greek personification of memory. The wing/room/drawer hierarchy is named after the classical [method of loci](https://en.wikipedia.org/wiki/Method_of_loci) (the original "memory palace").
 
@@ -190,12 +190,13 @@ Then visit `http://localhost:8000/admin`. The panel ships:
 - **Wings / Rooms / Drawers** — full CRUD plus a Drawer view page with soft-delete, force-delete with confirmation, and restore. Drawers can be filtered by wing, source, date range, or trashed status.
 - **Wiki pages** — markdown-rendered view, type badge, type filter, word count, last-compiled-at staleness tracking. Edits only reset staleness when the actual content changes.
 - **OAuth clients & tokens** — view registered OAuth clients (via Dynamic Client Registration or manual creation), revoke access tokens, and inspect each client's wing restrictions. Managed in the Filament panel.
+- **Documents** — upload docx, pptx, pdf, csv, png, jpg, webp and svg files into a wing; each file's text becomes drawers, and the original is kept for download. See [Uploading documents](#uploading-documents).
 - **MCP audit log** — read-only browser for every tool invocation. Filter by tool name, source, or date range. The full input JSON is pretty-printed on the view page.
 - **Search** — custom page at `/admin/search` with a live form. Toggle between palace, wiki, or both; optionally narrow by wing. Cross-source results are jointly normalised before sorting so the merged ranking is meaningful.
 
 ### As an AI agent (MCP)
 
-Mnemon exposes 14 tools over Streamable HTTP at `POST /mcp` (JSON-RPC 2.0). Authenticate with an OAuth 2.1 bearer token issued via Passport. All tools require the `mcp:use` scope; wing restrictions (selected at the consent screen) provide per-agent isolation.
+Mnemon exposes 15 tools over Streamable HTTP at `POST /mcp` (JSON-RPC 2.0). Authenticate with an OAuth 2.1 bearer token issued via Passport. All tools require the `mcp:use` scope; wing restrictions (selected at the consent screen) provide per-agent isolation.
 
 To connect from Claude Code:
 
@@ -211,6 +212,7 @@ All tools require scope `mcp:use`. Wing restrictions on the token's OAuth client
 | `brain_status` | Drawer/wiki counts, wings, embedding driver, staleness summary |
 | `palace_wake_up` | Recent drawers, wing activity, stale wiki pages |
 | `drawer_add` | Add a drawer (auto-creates wing/room if missing, embeds content, flags related wiki pages for recompilation) |
+| `document_add` | Upload a file (base64, up to 10 MB): its text is extracted into drawers and the original kept. For files only; text an agent already has goes through `drawer_add` |
 | `drawer_search` | Hybrid search; supports `wing`, `room`, `mode`, `limit` |
 | `drawer_get` | Fetch a single drawer by id |
 | `context_get` | Read a wiki page by name (includes structured metadata, confidence, sources) |
@@ -223,7 +225,34 @@ All tools require scope `mcp:use`. Wing restrictions on the token's OAuth client
 | `recall` | Hybrid recall of wiki excerpts and drawer snippets for a prompt, packed into a token budget; powers the Claude Code `mnemon-recall.sh` hook |
 | `session_digest` | Digest a sanitized transcript slice into drawer proposals; persists high-confidence ones, filing project-specific drawers under the session's project wing; powers the Claude Code `mnemon-capture.sh` hook |
 
-Wing restrictions on a token's OAuth client apply to every tool, resource and prompt — a client restricted to `project-atlas` cannot read, search, count or write `personal` drawers and wiki pages. A drawer or wiki page it cannot read answers exactly like one that does not exist, and a write addressed by name (`context_set`, `wiki_compile`, `drawer_add`) is refused on the name alone, whether or not anything by that name exists. See [Limitations](#limitations) for what a restricted write still touches.
+Wing restrictions on a token's OAuth client apply to every tool, resource and prompt — a client restricted to `project-atlas` cannot read, search, count or write `personal` drawers and wiki pages. A drawer or wiki page it cannot read answers exactly like one that does not exist, and a write addressed by name (`context_set`, `wiki_compile`, `drawer_add`, `document_add`) is refused on the name alone, whether or not anything by that name exists. See [Limitations](#limitations) for what a restricted write still touches.
+
+### Uploading documents
+
+Files go into the palace like any other content: their text becomes drawers in
+the wing and room you choose (room `documents` by default), found by search
+and recall, and the original file is kept for download from the admin panel.
+
+| Type | What is read |
+|---|---|
+| docx | Body text in order: paragraphs, lists, tables. Top-level headings split the document into sections. |
+| pptx | Each slide in presentation order: title, text, tables and speaker notes. Hidden slides are read and marked. |
+| pdf | The text layer, page by page. A scanned PDF has none and is stored without text. |
+| csv | The rows, in drawer-sized chunks that each repeat the header row. |
+| png, jpg, webp | A description written by the digest provider's vision model: any legible text transcribed, then what the image shows. One paid call per image; the drawer says the text was written by the model. |
+| svg | Its own text: title, description, text elements and labels. Vision models do not read SVG. |
+
+Three ways in, all through the same code and the same wing restrictions:
+
+- **Admin panel** — Documents → Upload documents (up to 20 files at once, 25 MB each).
+- **HTTP** — `POST /api/documents`, multipart, with the same OAuth bearer token as `/mcp`: `file`, then `wing` or `project`, and optionally `room`, `note` and `occurred_at`. In Claude Code, the plugin's `/mnemon:upload <file>...` runs `plugins/mnemon/scripts/mnemon-upload.sh`, which files into the current repository's project by default.
+- **MCP** — `document_add`, with the file base64-encoded. Up to 10 MB, since the file travels inside the JSON request.
+
+The same file uploaded to the same room again is not stored twice. A file that
+could not be read (damaged, encrypted, a vision call that failed) is kept with
+the reason, and can be extracted again from its page in the admin panel.
+Deleting a document deletes its drawers (restorable from Drawers) and the
+stored file. Settings: the `MNEMON_DOCUMENT_*` variables in `.env.example`.
 
 ---
 
@@ -376,6 +405,11 @@ This is a working personal tool, not a finished product. Honest constraints toda
 - **`brain_sessions.source` is non-nullable.** The audit log requires every invocation to identify itself with a key name; anonymous calls are rejected upstream by the auth middleware.
 - **No drawer hard delete from the API.** The Filament Drawer resource exposes `forceDelete` and `restore`. The MCP layer cannot delete a drawer or rewrite its content, but it is not purely read+append: `context_set` promotes its source drawers to the `consolidated` tier (`ContextSetTool.php:184`).
 - **No nested resource routing.** Rooms-under-Wings and Drawers-under-Rooms are flat resources with filters in the panel. True Filament nested URLs (`/admin/wings/{wing}/rooms/{room}`) are deferred.
+- **Uploads are read in the request.** A large PDF or a batch of images is extracted while the upload waits, up to `MNEMON_DOCUMENT_TIME_LIMIT` (300 s) per file; there is no queue. Behind a proxy with a shorter timeout, upload large files one at a time.
+- **No OCR.** A scanned PDF, or a photo of a document uploaded as a PDF, has no text layer and is stored without text (a note given with it becomes its drawer). Upload the page as an image to have the vision model transcribe it.
+- **What extraction leaves out.** Word headers, footers, footnotes and comments; text inside images in Word, PowerPoint and PDF files; PDF layout (columns and tables come out as runs of text, in the order the PDF stores them). Legacy `.doc`, `.ppt` and `.xls` and all Excel files are not accepted.
+- **A revised file is a second document.** Uploading an edited version keeps both, each with its own drawers; delete the old one if it should no longer be found.
+- **Image descriptions are a model's reading.** They can miss or misread detail, and they cost a vision call per image (`MNEMON_DOCUMENT_VISION=false` turns them off). The image goes to the digest provider; its EXIF metadata, a phone photo's location included, is stripped first.
 - **No streaming.** MCP transport is request/response only. Server-sent events or WebSocket streaming is not implemented.
 
 ---
