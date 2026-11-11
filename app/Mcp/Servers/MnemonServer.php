@@ -12,6 +12,7 @@ use App\Mcp\Tools\BrainStatusTool;
 use App\Mcp\Tools\ContextGetTool;
 use App\Mcp\Tools\ContextListTool;
 use App\Mcp\Tools\ContextSetTool;
+use App\Mcp\Tools\DocumentAddTool;
 use App\Mcp\Tools\DrawerAddTool;
 use App\Mcp\Tools\DrawerGetTool;
 use App\Mcp\Tools\DrawerSearchTool;
@@ -36,6 +37,7 @@ class MnemonServer extends Server
         DrawerSearchTool::class,
         DrawerGetTool::class,
         DrawerAddTool::class,
+        DocumentAddTool::class,
         SessionDigestTool::class,
         BrainStatusTool::class,
         PalaceWakeUpTool::class,

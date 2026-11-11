@@ -60,6 +60,7 @@ RUN composer dump-autoload --optimize --no-dev --no-interaction \
         && rm -f /usr/bin/composer
 
 COPY docker/Caddyfile /etc/caddy/Caddyfile
+COPY docker/php.ini /usr/local/etc/php/conf.d/zz-mnemon.ini
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint
 RUN chmod +x /usr/local/bin/entrypoint
 

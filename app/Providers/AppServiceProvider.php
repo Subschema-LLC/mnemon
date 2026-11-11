@@ -10,6 +10,8 @@ use App\Observers\DrawerObserver;
 use App\Observers\WikiPageObserver;
 use App\Passport\GuardsMalformedClientIds;
 use App\Services\Digest\DigestDrivers;
+use App\Services\Documents\ImageCaptioner;
+use App\Services\Documents\VisionImageCaptioner;
 use App\Services\DrawerWriteService;
 use App\Services\EmbeddingManager;
 use App\Services\SessionDigestService;
@@ -29,6 +31,9 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(EmbeddingManager::class);
+
+        // Image uploads are described by the digest provider's vision model.
+        $this->app->bind(ImageCaptioner::class, VisionImageCaptioner::class);
 
         $this->app->bind(SessionDigestService::class, function ($app) {
             return new SessionDigestService(
@@ -97,6 +102,14 @@ class AppServiceProvider extends ServiceProvider
             return $request->user()
                 ? Limit::perMinute(120)->by($request->user()->currentAccessToken()->id ?? $request->ip())
                 : Limit::perMinute(20)->by($request->ip());
+        });
+
+        // Uploads are heavier than tool calls: each can mean a parse of up to
+        // MNEMON_DOCUMENT_MAX_MB and a paid vision call.
+        RateLimiter::for('documents', function (Request $request) {
+            return $request->user()
+                ? Limit::perMinute(20)->by('documents:'.($request->user()->currentAccessToken()->id ?? $request->ip()))
+                : Limit::perMinute(5)->by('documents:'.$request->ip());
         });
     }
 }

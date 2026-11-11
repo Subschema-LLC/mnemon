@@ -409,6 +409,54 @@ Claude calls `context_list` and filters by `last_compiled_at`. The `FindStaleWik
 
 Claude calls `wiki_graph` with `start_page: "project:atlas"`, `max_depth: 2`. You get a typed-edge subgraph showing related entities.
 
+### Upload a document
+
+Files whose content should be findable later -- a spec, a board deck, a
+contract, a spreadsheet export, a whiteboard photo -- can be uploaded instead
+of pasted. Accepted: docx, pptx, pdf, csv, png, jpg, webp, svg.
+
+- **From the admin panel:** Documents → **Upload documents**. Pick up to 20
+  files, a wing (created if it does not exist) and optionally a room (default
+  `documents`), a note, and when the files are from.
+- **From Claude Code:** `/mnemon:upload ~/Downloads/q3-board.pdf` files into
+  the current repository's project wing; add `--wing <slug>` or
+  `--project <name>`, `--room` and `--note` to choose. The script behind it,
+  `mnemon-upload.sh`, runs from any terminal on a device set up for the hooks.
+- **From any agent:** the `document_add` tool takes the file base64-encoded,
+  up to 10 MB.
+- **From a script:** `POST /api/documents` with the device's bearer token:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
+     -F "file=@q3-board.pdf" -F "wing=work" -F "note=Board pack, October" \
+     https://mnemon.example.com/api/documents
+```
+
+What happens: the original is stored, its text is extracted and split into
+drawers (Word documents at their top-level headings, decks by slide with
+speaker notes, PDFs by page, CSVs into chunks that each repeat the header
+row), and each drawer starts with the file name and the part it holds, so a
+search hit says where it came from. An image is sent to the digest provider's
+vision model, which transcribes any text in it and describes the rest; that
+drawer says the text was written by the model. Each image is one paid call,
+shown with the digest spend on the LLM models page.
+
+On the document's page in the admin panel: its status, the drawers it made
+(each links to the drawer), **Download**, **Extract again**, and **Delete**,
+which deletes its drawers too.
+
+| Status | Meaning | What to do |
+|---|---|---|
+| Extracted | Text was found and filed. | Nothing. |
+| No text | The file holds no text Mnemon reads: a scanned PDF, an SVG with no text, an image with descriptions turned off. A note given with the upload became its drawer. | For a scan, upload the pages as images to have them transcribed. |
+| Failed | The file could not be read (damaged, encrypted), the vision call failed, or it would make more than `MNEMON_DOCUMENT_MAX_CHUNKS` drawers. The reason is shown. | Fix the cause, then **Extract again**, or upload the file again. |
+
+Uploading the same file to the same room again does not store it twice. An
+edited version is a different file: both are kept, so delete the old one if
+it should stop turning up in recall. Wing restrictions apply to uploads as to
+any write: a device restricted to `project-atlas` cannot upload into
+`personal`.
+
 ---
 
 ## OAuth consent
@@ -1426,6 +1474,7 @@ Mnemon's value compounds over time. Treat it like a primary database — back it
 1. **The Postgres database**, including the `vector` extension's columns. Standard `pg_dump` handles vector columns natively — they dump as text, in the same bracketed literal form the type accepts.
 2. **Passport encryption keys** (`storage/oauth-*.key` or the env-var versions). Without them, no OAuth tokens validate.
 3. **`.env`** — has DB credentials and `OPENAI_API_KEY`.
+4. **Uploaded documents' originals**, under `storage/app/private/documents/` (or on `MNEMON_DOCUMENT_DISK`). Their text is in the database as drawers; the files are what **Download** and **Extract again** need. The Docker install keeps them in the `storage` volume.
 
 ### Daily dump
 

@@ -60,10 +60,18 @@ class LlmModelsTable
                     ->numeric()
                     ->placeholder('—')
                     ->alignRight(),
+                TextColumn::make('vision_calls')
+                    ->label('Vision calls')
+                    ->tooltip('Image captions for uploaded documents. Counted in spend, not in the per-call averages.')
+                    ->state(fn (LlmModel $record) => $record->allUsageTotals()->calls - $usage($record)->calls ?: null)
+                    ->numeric()
+                    ->placeholder('—')
+                    ->alignRight()
+                    ->toggleable(),
                 TextColumn::make('spend')
                     ->label('Spend')
-                    ->state(function (LlmModel $record) use ($usage) {
-                        $u = $usage($record);
+                    ->state(function (LlmModel $record) {
+                        $u = $record->allUsageTotals();
                         if (! $u->calls) {
                             return null;
                         }

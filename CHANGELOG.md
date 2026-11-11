@@ -44,6 +44,31 @@ Plugin versions refer to the Claude Code plugin in `plugins/mnemon/`.
   `queued_for_review` field (replays included). New wings still go to Pending
   Wings. This is the "pre-store digest review" item from the Layer 2 design's
   future work.
+- **Upload documents into memory.** docx, pptx, pdf, csv, png, jpg, webp and
+  svg files: each file's text is extracted and filed as drawers in the wing
+  and room chosen (room `documents` by default), and the original is kept
+  for download. Word documents are split at their top-level headings, decks
+  by slide (with speaker notes), PDFs by page, CSVs into chunks that repeat
+  the header row. Images are described by the digest provider's vision
+  model (`MNEMON_DOCUMENT_VISION`, `MNEMON_DOCUMENT_VISION_MODEL`), one paid
+  call each, recorded with the digest spend; the drawer says the text was
+  written by the model, and EXIF metadata is stripped before the image is
+  sent. Three ways in, under the same wing restrictions: **Documents** in the
+  admin panel, `POST /api/documents` with an MCP bearer token (and the
+  plugin's `/mnemon:upload`, `mnemon-upload.sh`), and the new `document_add`
+  MCP tool (base64, up to 10 MB). A re-upload of the same file to the same
+  room is not stored twice; a file that could not be read is kept with the
+  reason and can be extracted again. Settings: `MNEMON_DOCUMENT_*` in
+  `.env.example`. Plugin 0.3.13.
+
+### Changed
+- **The Docker image raises PHP's upload and memory limits.** A new
+  `docker/php.ini` sets `upload_max_filesize` and `post_max_size` to 64M (the
+  base image ships no php.ini, so they were 2M and 8M) and `memory_limit` to
+  512M for parsing large documents.
+- **LLM models: spend includes vision calls.** Calls are recorded with a
+  purpose; the per-call averages still count digests only, and a Vision calls
+  column counts the rest.
 
 ### Fixed
 - **The OAuth consent screens are readable in dark mode.** Their colour

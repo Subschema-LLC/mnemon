@@ -71,4 +71,16 @@ class LlmModelTest extends TestCase
 
         $this->assertSame([2, 200, 20, 40], [$u->calls, $u->prompt_tokens, $u->cached_prompt_tokens, $u->completion_tokens]);
     }
+
+    public function test_vision_calls_count_toward_spend_but_not_the_digest_averages(): void
+    {
+        $m = LlmModel::create(['provider' => 'openai', 'model' => 'a']);
+        $row = ['provider' => 'openai', 'model' => 'a', 'prompt_tokens' => 100, 'cached_prompt_tokens' => 0, 'completion_tokens' => 20];
+        DigestUsage::create($row);
+        DigestUsage::create(['purpose' => DigestUsage::PURPOSE_VISION, 'prompt_tokens' => 900] + $row);
+
+        $this->assertSame([1, 100], [$m->usageTotals()->calls, (int) $m->usageTotals()->prompt_tokens]);
+        $this->assertSame([2, 1000], [$m->allUsageTotals()->calls, (int) $m->allUsageTotals()->prompt_tokens]);
+        $this->assertSame(DigestUsage::PURPOSE_DIGEST, DigestUsage::first()->purpose);
+    }
 }

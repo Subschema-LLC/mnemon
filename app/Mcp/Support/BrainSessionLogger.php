@@ -4,13 +4,18 @@ namespace App\Mcp\Support;
 
 use App\Models\BrainSession;
 use App\Models\User;
+use Illuminate\Http\Request as HttpRequest;
 use Laravel\Mcp\Request;
 use Laravel\Passport\Client;
 use Laravel\Passport\Token;
 
+/**
+ * Writes the audit trail. Takes an MCP request or, for the upload endpoint, an
+ * HTTP one: both carry the authenticated user and token.
+ */
 class BrainSessionLogger
 {
-    public static function log(Request $request, string $tool, array $input, int $resultCount): void
+    public static function log(Request|HttpRequest $request, string $tool, array $input, int $resultCount): void
     {
         $user = $request->user();
         $token = $user?->currentAccessToken();
@@ -36,7 +41,7 @@ class BrainSessionLogger
      * callers reach a tool guard — auth:api rejects the rest — so there is no
      * unauthenticated write path into this table.
      */
-    public static function logDenial(Request $request, string $tool, array $input, string $reason): void
+    public static function logDenial(Request|HttpRequest $request, string $tool, array $input, string $reason): void
     {
         $user = $request->user();
         $token = $user?->currentAccessToken();
@@ -61,7 +66,7 @@ class BrainSessionLogger
      * digest whose model call failed. Written so the failure is visible in the
      * audit trail rather than only in a server log.
      */
-    public static function logFailure(Request $request, string $tool, array $input, string $reason): void
+    public static function logFailure(Request|HttpRequest $request, string $tool, array $input, string $reason): void
     {
         $user = $request->user();
         $token = $user?->currentAccessToken();
