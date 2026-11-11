@@ -82,6 +82,12 @@ $COMPOSE exec -T app sh -c '
 '
 echo "assets OK"
 
+# docker/php.ini: without it PHP's built-in 2 MB upload limit applies and
+# every document over 2 MB is refused before Mnemon sees it.
+UPLOAD_MAX=$($COMPOSE exec -T app php -r 'echo ini_get("upload_max_filesize"), " ", ini_get("post_max_size");')
+[ "$UPLOAD_MAX" = "64M 64M" ] || { echo "FAIL: upload limits are '$UPLOAD_MAX', expected '64M 64M' from docker/php.ini"; exit 1; }
+echo "upload limits OK"
+
 PW1=$($COMPOSE exec -T app sh -c 'cat storage/admin-password.txt')
 KEY1=$($COMPOSE exec -T app sh -c 'cat storage/app_key')
 USERS1=$($COMPOSE exec -T app php artisan tinker --execute='echo App\Models\User::count();' | tail -1)

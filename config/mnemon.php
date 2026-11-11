@@ -168,6 +168,55 @@ return [
         // measured average per model to set it from.
         'typical_output_tokens' => (int) env('MNEMON_DIGEST_TYPICAL_OUTPUT_TOKENS', 3000),
     ],
+
+    // Uploaded documents (Admin -> Documents, POST /api/documents, the
+    // document_add tool). The original is kept on `disk`; its text becomes
+    // drawers of up to `chunk_chars` characters each.
+    'documents' => [
+        'disk' => env('MNEMON_DOCUMENT_DISK', 'local'),
+
+        // Largest file accepted, in megabytes. PHP's upload_max_filesize and
+        // post_max_size must allow it too; the Docker image sets both to 64M.
+        'max_mb' => (int) env('MNEMON_DOCUMENT_MAX_MB', 25),
+
+        // Largest file document_add takes, in megabytes. It arrives base64
+        // inside a JSON-RPC body, a third larger than the file.
+        'mcp_max_mb' => (int) env('MNEMON_DOCUMENT_MCP_MAX_MB', 10),
+
+        // Characters per drawer. Well under the input limit of every
+        // embedding provider Mnemon supports (Gemini's is the smallest, at
+        // 2,048 tokens), so each chunk is embedded whole.
+        'chunk_chars' => (int) env('MNEMON_DOCUMENT_CHUNK_CHARS', 4000),
+
+        // A document that would make more drawers than this is kept but not
+        // filed: each drawer is embedded while the upload waits, so a large
+        // CSV could otherwise hold a request for many minutes.
+        'max_chunks' => (int) env('MNEMON_DOCUMENT_MAX_CHUNKS', 200),
+
+        // The room uploads go to when none is given.
+        'default_room' => env('MNEMON_DOCUMENT_ROOM', 'documents'),
+
+        // Seconds an upload may run: extraction, a vision call, and the
+        // embedding of every chunk.
+        'time_limit' => (int) env('MNEMON_DOCUMENT_TIME_LIMIT', 300),
+
+        // Images (png, jpg, webp) are described by a vision call on the
+        // digest provider: one paid call per image. Off, an image is stored
+        // with no searchable text unless the upload carries a note.
+        'vision' => (bool) env('MNEMON_DOCUMENT_VISION', true),
+
+        // A different model of the digest provider for vision, when the
+        // digest model cannot read images. Unset, the digest model is used.
+        'vision_model' => env('MNEMON_DOCUMENT_VISION_MODEL'),
+
+        // Longest edge an image is scaled to before it is sent. Larger costs
+        // more and reads no better.
+        'vision_max_edge' => (int) env('MNEMON_DOCUMENT_VISION_MAX_EDGE', 1568),
+
+        // Output tokens a vision caption may use.
+        'vision_max_tokens' => (int) env('MNEMON_DOCUMENT_VISION_MAX_TOKENS', 2000),
+    ],
+
     // The public, read-only demo (trymnemon.com). Off unless MNEMON_DEMO=true.
     // See docs/design/2026-10-13-public-demo-design.md.
     'demo' => [

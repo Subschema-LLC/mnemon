@@ -66,4 +66,16 @@ class OpenAiCompatibleDigestDriver extends OpenAiDigestDriver
 
         return $body;
     }
+
+    /**
+     * The OpenAI image shape, with max_tokens for the same reason body() uses it.
+     */
+    protected function imageBody(string $model, string $prompt, string $mime, string $base64): array
+    {
+        $body = parent::imageBody($model, $prompt, $mime, $base64);
+        unset($body['max_completion_tokens']);
+        $body['max_tokens'] = (int) config('mnemon.documents.vision_max_tokens', 2000);
+
+        return $body;
+    }
 }

@@ -36,6 +36,13 @@ abstract class DigestDriver
     /** Sends the request; a transport failure throws ConnectionException. */
     abstract protected function send(string $model, string $system, string $user): Response;
 
+    /**
+     * Sends one image with a text prompt, asking for plain text back.
+     *
+     * @param  string  $base64  The image, base64-encoded
+     */
+    abstract protected function sendImage(string $model, string $prompt, string $mime, string $base64): Response;
+
     /** The answer's text, from a successful response. */
     abstract protected function contentFrom(Response $response): ?string;
 
@@ -147,6 +154,65 @@ abstract class DigestDriver
         $this->lastUsage = $this->usageFrom($response);
 
         return $this->proposalsFrom($this->contentFrom($response));
+    }
+
+    /**
+     * The model a vision caption runs on: MNEMON_DOCUMENT_VISION_MODEL when
+     * set, else the digest model.
+     */
+    public function visionModel(): string
+    {
+        $configured = config('mnemon.documents.vision_model');
+
+        return is_string($configured) && trim($configured) !== '' ? trim($configured) : $this->model();
+    }
+
+    /**
+     * A plain-text description of an image, for an uploaded image's drawer.
+     *
+     * Fails the way digest() fails, so the same rules decide what a retry
+     * can fix: DigestUnavailable, retryable for a timeout, a 429 or a 5xx.
+     *
+     * @throws DigestUnavailable
+     */
+    public function describeImage(string $bytes, string $mime, string $prompt): string
+    {
+        $this->lastUsage = null;
+        $this->lastModel = null;
+
+        $this->ensureConfigured();
+
+        $model = $this->lastModel = $this->visionModel();
+
+        try {
+            $response = $this->sendImage($model, $prompt, $mime, base64_encode($bytes));
+        } catch (ConnectionException $e) {
+            Log::warning("mnemon: {$this->provider()} vision call could not complete", ['reason' => $e->getMessage()]);
+
+            throw new DigestUnavailable('the vision call timed out or could not connect', retryable: true);
+        }
+
+        if (! $response->successful()) {
+            $status = $response->status();
+            Log::warning("mnemon: {$this->provider()} vision call failed", [
+                'status' => $status,
+                'body' => mb_substr($response->body(), 0, 500),
+            ]);
+
+            throw new DigestUnavailable(
+                "the vision call failed with HTTP {$status}".($status === 400 ? ' (does the model read images?)' : ''),
+                retryable: $status === 429 || $status >= 500,
+            );
+        }
+
+        $this->lastUsage = $this->usageFrom($response);
+
+        $text = trim((string) $this->contentFrom($response));
+        if ($text === '') {
+            throw new DigestUnavailable('the vision model returned no description', retryable: true);
+        }
+
+        return $text;
     }
 
     /**

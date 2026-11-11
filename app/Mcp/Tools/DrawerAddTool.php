@@ -5,10 +5,10 @@ namespace App\Mcp\Tools;
 use App\Mcp\Concerns\RequiresScope;
 use App\Mcp\Concerns\RequiresWingAccess;
 use App\Mcp\Concerns\ResolvesAgentSource;
+use App\Mcp\Concerns\ResolvesProjectWing;
 use App\Mcp\Support\BrainSessionLogger;
 use App\Models\Wing;
 use App\Services\DrawerWriteService;
-use App\Support\ProjectWings;
 use Carbon\Carbon;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
@@ -20,7 +20,7 @@ use Laravel\Mcp\Server\Tool;
 #[Description('Add a drawer (verbatim content) to a room within a wing.')]
 class DrawerAddTool extends Tool
 {
-    use RequiresScope, RequiresWingAccess, ResolvesAgentSource;
+    use RequiresScope, RequiresWingAccess, ResolvesAgentSource, ResolvesProjectWing;
 
     protected string $name = 'drawer_add';
 
@@ -79,35 +79,6 @@ class DrawerAddTool extends Tool
             'wing' => $params['wing'],
             'created' => $drawer->wasRecentlyCreated,
         ]);
-    }
-
-    /**
-     * The wing a project files into, or the refusal to return. A project whose
-     * wing the token cannot reach is refused exactly as a missing wing is.
-     */
-    private function wingForProject(Request $request, string $project): string|Response
-    {
-        $name = Wing::slugify($project);
-        if ($name === '') {
-            return Response::error('Parameter "project" must contain at least one letter or digit.');
-        }
-
-        $patterns = $this->wingPatternsFor($request);
-        $ids = Wing::readableIds($patterns);
-        $wings = Wing::query()
-            ->when($ids !== null, fn ($q) => $q->whereIn('id', $ids))
-            ->get()
-            ->all();
-
-        $slug = ProjectWings::wingSlugForProject($project, $wings, $patterns);
-        if ($slug !== null) {
-            return $slug;
-        }
-
-        $missing = "project-{$name}";
-
-        return $this->requireWingAccess($request, $missing)
-            ?? Response::error("Token does not have access to wing: {$missing}");
     }
 
     public function schema(JsonSchema $s): array

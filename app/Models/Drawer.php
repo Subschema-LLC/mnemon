@@ -22,6 +22,7 @@ class Drawer extends Model
     protected $fillable = [
         'content',
         'room_id',
+        'document_id',
         'source',
         'metadata',
         'embedding',
@@ -100,6 +101,12 @@ class Drawer extends Model
     public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class);
+    }
+
+    /** The upload this drawer's text came from, if any. */
+    public function document(): BelongsTo
+    {
+        return $this->belongsTo(Document::class);
     }
 
     public function wing(): Wing
