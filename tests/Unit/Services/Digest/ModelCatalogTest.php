@@ -2,11 +2,12 @@
 
 namespace Tests\Unit\Services\Digest;
 
-use App\Models\LlmModel;
 use App\Services\Digest\ModelCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Mnemon\Entities\LlmModel\LlmModelList;
+use Mnemon\Entities\LlmModel\LlmModelStore;
 use Tests\TestCase;
 
 class ModelCatalogTest extends TestCase
@@ -26,7 +27,7 @@ class ModelCatalogTest extends TestCase
         ]);
 
         // The migration enters the shipped model; these tests enter their own.
-        LlmModel::query()->delete();
+        $this->app->make(LlmModelStore::class)->save(new LlmModelList);
     }
 
     public function test_openai_lists_only_chat_models_newest_first_and_caches_the_list(): void
@@ -52,7 +53,7 @@ class ModelCatalogTest extends TestCase
     public function test_without_a_key_nothing_is_fetched_and_the_configured_and_entered_models_are_offered(): void
     {
         Http::fake();
-        LlmModel::create(['provider' => 'openai', 'model' => 'gpt-entered']);
+        $this->addLlmModel('openai', 'gpt-entered');
 
         $options = ModelCatalog::modelOptions('openai');
 
@@ -116,7 +117,7 @@ class ModelCatalogTest extends TestCase
     public function test_providers_offer_the_digest_providers_then_those_entered_for_comparison(): void
     {
         config(['mnemon.digest.compatible.base_url' => 'https://api.groq.com/openai/v1']);
-        LlmModel::create(['provider' => 'mistral', 'model' => 'mistral-large']);
+        $this->addLlmModel('mistral', 'mistral-large');
 
         $options = ModelCatalog::providerOptions('deepseek');
 

@@ -82,7 +82,8 @@ Run `composer fides` before you finish: it tests the checker, then checks the ar
 | A contract no single entity owns (a clock, a unit of work) | `src/Shared/` |
 | A way the app reaches the world: an Eloquent record, an embedding or digest provider, file storage, a parser library | `src/Integrations/<Name>/`, behind a contract |
 | A way the world reaches the app: an MCP tool, an HTTP controller, an artisan command, an admin screen | `src/Delivery/<Door>/` (`Mcp`, `Http`, `Cli`, `Admin`) |
-| Binding every contract to its integration | `src/Delivery/Wiring.php`, a service provider listed in `bootstrap/providers.php` (created with the first contract) |
+| Binding every contract to its integration | `src/Delivery/Wiring.php`, a service provider listed in `bootstrap/providers.php` |
+| An operator's settings file (`LlmModel.yaml`) | the overrides folder, `storage/overrides/` (`MNEMON_OVERRIDES_PATH`), one file per owner, read and written through the owner's store contract |
 
 Namespaces are `Mnemon\` plus the folder path. Feature groups (`src/Features/<Group>/<UseCase>/`) are not decided yet: the first feature to move decides, and then every feature follows.
 
@@ -91,7 +92,8 @@ Namespaces are `Mnemon\` plus the folder path. Feature groups (`src/Features/<Gr
 - **Eloquent models are integrations.** An active-record model inherits from the framework, so it is the store's record, never an entity. A store in `src/Integrations/` copies between the record and the entity.
 - **No facades or helpers in the core.** `DB::`, `Cache::`, `config()`, `now()` and the like hide a dependency. A feature names what it needs in its constructor; delivery and integrations may use the framework freely.
 - **A base class the framework requires** (a service provider, a `laravel/mcp` tool, a Filament resource) is allowed only at the edge, in delivery or integrations, kept thin, and listed with its reason in `FIDES_EDGE` in `fides/arch-check.php`.
-- **Settings:** the framework's `config/` and `.env` stay as they are. Mnemon also keeps some settings in the database (per-model prices and the digest model, edited in the admin panel), which rule 9 does not allow. That stays until it is decided on its own.
+- **Settings:** the framework's `config/` and `.env` stay as they are. Settings an operator curates live in the overrides folder, never the database: the chat models, their prices and the digest model are `LlmModel.yaml`, kept by `YamlLlmModelStore` behind `LlmModelStore`. The **LLM models** admin page writes the same file.
+- **Tests** never touch a real settings file: `Tests\TestCase` binds an in-memory store before the migrations run, and `addLlmModel()` adds a model the way the admin page does.
 
 ### Moving a piece out of `app/`
 
@@ -99,5 +101,7 @@ Namespaces are `Mnemon\` plus the folder path. Feature groups (`src/Features/<Gr
 2. Build it in `src/`. Code in `src/` never imports `app/`, except an integration that wraps an old service as an adapter until that service moves too. Old code may call into `src/`.
 3. Point the old callers at the new code, delete the old code, and keep the tests passing at every step.
 4. `app/` is held to a ratchet in `fides/ratchet.json`: its count of inheritance, oversized files and facade imports may go down, never up. When a move lowers a count, run `php fides/arch-check.php --update-ratchet` and commit the file. A count that goes up fails the build; write the new code in `src/` instead.
+
+Moved so far: `LlmModel` (entity and store in `src/`; its admin page is still in `app/Filament/Pages/LlmModels.php`, until the model catalog and usage totals move).
 
 The checker does not cover Blade views (rules 10 and 11) or settings (rule 9) yet.

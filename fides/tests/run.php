@@ -127,6 +127,21 @@ $tests = [
             && ! mentions($failures, 'Wiring');
     },
 
+    'the_wiring_file_may_name_the_entity_contracts_it_binds' => function () use ($wiring) {
+        $contract = [
+            'src/Entities/Wing/WingStore.php' => php('Entities\Wing', 'interface WingStore {}'),
+        ];
+        $bound = ['src/Delivery/Wiring.php' => $wiring('Mnemon\Entities\Wing\WingStore')];
+        $elsewhere = ['src/Delivery/Mcp/Tool.php' => php(
+            'Delivery\Mcp',
+            'use Mnemon\Entities\Wing\WingStore;',
+            'final class Tool {}',
+        )];
+
+        return failuresOf($contract + $bound) === []
+            && mentions(failuresOf($contract + $bound + $elsewhere), 'Tool.php: may not import');
+    },
+
     'no_inheritance_outside_the_edge_list' => fn () => mentions(failuresOf([
         'src/Features/AddDrawer/AddDrawer.php' => php(
             'Features\AddDrawer',

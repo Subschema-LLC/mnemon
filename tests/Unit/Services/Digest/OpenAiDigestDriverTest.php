@@ -2,7 +2,6 @@
 
 namespace Tests\Unit\Services\Digest;
 
-use App\Models\LlmModel;
 use App\Services\Digest\DigestUnavailable;
 use App\Services\Digest\OpenAiDigestDriver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -115,7 +114,7 @@ class OpenAiDigestDriverTest extends TestCase
         Http::fake(['api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{"proposals":[]}']]]])]);
         config(['services.openai.api_key' => 'sk-test']);
         config(['mnemon.llm.model' => 'gpt-shared', 'mnemon.digest.openai_model' => 'gpt-digest']);
-        LlmModel::create(['provider' => 'openai', 'model' => 'gpt-picked', 'is_digest_model' => true]);
+        $this->addLlmModel('openai', 'gpt-picked', forDigests: true);
 
         $driver = new OpenAiDigestDriver;
         $this->assertNull($driver->lastModel());
@@ -128,7 +127,7 @@ class OpenAiDigestDriverTest extends TestCase
     public function test_a_marked_model_of_another_provider_is_not_sent_to_openai(): void
     {
         config(['mnemon.llm.model' => 'gpt-shared', 'mnemon.digest.openai_model' => null]);
-        LlmModel::create(['provider' => 'anthropic', 'model' => 'claude-x', 'is_digest_model' => true]);
+        $this->addLlmModel('anthropic', 'claude-x', forDigests: true);
 
         $this->assertSame('gpt-shared', (new OpenAiDigestDriver)->model());
     }
