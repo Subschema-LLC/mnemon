@@ -10,7 +10,7 @@
  *  - Integrations import entities, shared and their own folder, and may wrap
  *    old code in app/ (App\) as an adapter until it moves.
  *  - Delivery imports features, shared and delivery. Only the wiring file
- *    names integrations.
+ *    names integrations, and it may name the entity contracts it binds.
  *  - The core (entities, features, shared) imports nothing from a vendor
  *    except what FIDES_CORE_VENDOR_ALLOWED lists, each with its reason.
  *  - Nothing in src/ imports old code, except integrations. */
@@ -136,7 +136,8 @@ function mayReference(string $rel, string $name): bool
         'Shared' => $inOwnFolder,
         'Integrations' => in_array($targetZone, ['Entities', 'Shared'], true) || $inOwnFolder,
         'Delivery' => in_array($targetZone, ['Features', 'Shared', 'Delivery'], true)
-            || ($targetZone === 'Integrations' && $rel === FIDES_WIRING_FILE),
+            || ($rel === FIDES_WIRING_FILE
+                && in_array($targetZone, ['Entities', 'Integrations'], true)),
         default => false,
     };
 }

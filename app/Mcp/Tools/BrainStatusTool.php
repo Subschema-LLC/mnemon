@@ -6,7 +6,6 @@ use App\Mcp\Concerns\RequiresScope;
 use App\Mcp\Concerns\RequiresWingAccess;
 use App\Mcp\Support\BrainSessionLogger;
 use App\Models\Drawer;
-use App\Models\LlmModel;
 use App\Models\Room;
 use App\Models\WikiPage;
 use App\Models\Wing;
@@ -20,6 +19,7 @@ use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
+use Mnemon\Entities\LlmModel\LlmModelStore;
 
 #[Description('Aggregate counts and configuration of the Mnemon brain.')]
 #[IsReadOnly]
@@ -154,18 +154,17 @@ class BrainStatusTool extends Tool
             'recent_drawers' => [],
         ]);
 
-        // Prices are the model's own row in the admin panel; a model without
-        // one, or without a price entered, publishes null.
+        // Prices are the model's own entry in the settings file; a model
+        // without one, or without a price entered, publishes null.
         $model = $driver->model();
-        $row = LlmModel::for($driver->provider(), $model);
-        $price = fn (?string $v) => $v === null ? null : (float) $v;
+        $row = app(LlmModelStore::class)->load()->find($driver->provider(), $model);
 
         $digest = [
             'provider' => $driver->provider(),
             'model' => $model,
-            'price_in_per_mtok' => $price($row?->price_in_per_mtok),
-            'price_cached_in_per_mtok' => $price($row?->price_cached_in_per_mtok),
-            'price_out_per_mtok' => $price($row?->price_out_per_mtok),
+            'price_in_per_mtok' => $row?->priceInPerMtok,
+            'price_cached_in_per_mtok' => $row?->priceCachedInPerMtok,
+            'price_out_per_mtok' => $row?->priceOutPerMtok,
             'prompt_overhead_tokens' => (int) ceil((mb_strlen($prompt) + 50 * 200) / 4),
             'typical_output_tokens' => (int) config('mnemon.digest.typical_output_tokens', 3000),
             'max_completion_tokens' => (int) config('mnemon.digest.max_completion_tokens', 16000),

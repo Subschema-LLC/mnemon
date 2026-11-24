@@ -2,16 +2,16 @@
 
 namespace App\Services\Digest;
 
-use App\Models\LlmModel;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Mnemon\Entities\LlmModel\LlmModelStore;
 
 /**
  * The models the admin panel offers for a provider. Where the server holds
  * the provider's key, the list comes from the provider's own models endpoint,
  * so it stays current without a release; otherwise, or when that call fails,
- * it is the models Mnemon is configured with and the rows already entered.
+ * it is the models Mnemon is configured with and the ones already listed.
  * Any other model id can still be added by hand.
  */
 class ModelCatalog
@@ -43,7 +43,7 @@ class ModelCatalog
                 : $label;
         }
 
-        foreach (LlmModel::query()->distinct()->orderBy('provider')->pluck('provider') as $provider) {
+        foreach (app(LlmModelStore::class)->load()->providers() as $provider) {
             $options[$provider] ??= "{$provider} (price comparison only)";
         }
 
@@ -69,7 +69,7 @@ class ModelCatalog
             $options[$id] ??= $id;
         }
 
-        foreach (LlmModel::query()->where('provider', $provider)->orderBy('model')->pluck('model') as $id) {
+        foreach (app(LlmModelStore::class)->load()->modelsOf($provider) as $id) {
             $options[$id] ??= $id;
         }
 

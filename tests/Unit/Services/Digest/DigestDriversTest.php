@@ -2,13 +2,14 @@
 
 namespace Tests\Unit\Services\Digest;
 
-use App\Models\LlmModel;
 use App\Services\Digest\AnthropicDigestDriver;
 use App\Services\Digest\DigestDriver;
 use App\Services\Digest\DigestDrivers;
 use App\Services\Digest\OpenAiCompatibleDigestDriver;
 use App\Services\Digest\OpenAiDigestDriver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mnemon\Entities\LlmModel\InvalidLlmModel;
+use Mnemon\Entities\LlmModel\LlmModel;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -28,7 +29,7 @@ class DigestDriversTest extends TestCase
     public function test_the_marked_models_provider_wins_over_the_configured_driver(): void
     {
         config(['mnemon.digest.driver' => 'openai']);
-        LlmModel::create(['provider' => 'anthropic', 'model' => 'claude-sonnet-5-5', 'is_digest_model' => true]);
+        $this->addLlmModel('anthropic', 'claude-sonnet-5-5', forDigests: true);
 
         $driver = DigestDrivers::current();
 
@@ -36,13 +37,14 @@ class DigestDriversTest extends TestCase
         $this->assertSame('claude-sonnet-5-5', $driver->model());
     }
 
-    public function test_a_price_comparison_row_cannot_be_marked_and_so_never_picks_the_driver(): void
+    public function test_a_price_comparison_model_cannot_be_marked_and_so_never_picks_the_driver(): void
     {
         config(['mnemon.digest.driver' => 'openai']);
-        $row = LlmModel::create(['provider' => 'mistral', 'model' => 'mistral-large', 'is_digest_model' => true]);
+        $this->addLlmModel('mistral', 'mistral-large');
 
-        $this->assertFalse($row->fresh()->is_digest_model);
         $this->assertInstanceOf(OpenAiDigestDriver::class, DigestDrivers::current());
+        $this->expectException(InvalidLlmModel::class);
+        new LlmModel('mistral', 'mistral-large', usedForDigests: true);
     }
 
     public function test_an_unknown_driver_is_refused(): void

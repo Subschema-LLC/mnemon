@@ -2,7 +2,7 @@
 
 namespace App\Services\Digest;
 
-use App\Models\LlmModel;
+use Mnemon\Entities\LlmModel\LlmModelStore;
 use RuntimeException;
 
 /**
@@ -21,7 +21,9 @@ class DigestDrivers
 
     public static function current(): DigestDriver
     {
-        return self::make(LlmModel::digestModel()?->provider ?? (string) config('mnemon.digest.driver', 'openai'));
+        $marked = app(LlmModelStore::class)->load()->digestModel();
+
+        return self::make($marked?->provider ?? (string) config('mnemon.digest.driver', 'openai'));
     }
 
     public static function make(string $provider): DigestDriver

@@ -2,10 +2,10 @@
 
 namespace App\Services\Digest;
 
-use App\Models\LlmModel;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Log;
+use Mnemon\Entities\LlmModel\LlmModelStore;
 
 /**
  * What every digest driver shares: the prompt, the model choice, the failure
@@ -76,8 +76,8 @@ abstract class DigestDriver
      */
     public function model(): string
     {
-        $marked = LlmModel::digestModel();
-        if ($marked !== null && $marked->provider === $this->provider() && $marked->model !== '') {
+        $marked = app(LlmModelStore::class)->load()->digestModel();
+        if ($marked !== null && $marked->provider === $this->provider()) {
             return $marked->model;
         }
 
