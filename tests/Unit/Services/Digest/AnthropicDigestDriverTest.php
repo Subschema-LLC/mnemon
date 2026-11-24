@@ -2,7 +2,6 @@
 
 namespace Tests\Unit\Services\Digest;
 
-use App\Models\LlmModel;
 use App\Services\Digest\AnthropicDigestDriver;
 use App\Services\Digest\DigestUnavailable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -107,7 +106,7 @@ class AnthropicDigestDriverTest extends TestCase
 
         $this->assertSame('claude-sonnet-5-5', (new AnthropicDigestDriver)->model());
 
-        LlmModel::create(['provider' => 'anthropic', 'model' => 'claude-opus-5-5', 'is_digest_model' => true]);
+        $this->addLlmModel('anthropic', 'claude-opus-5-5', forDigests: true);
         (new AnthropicDigestDriver)->digest('t', []);
 
         Http::assertSent(fn (Request $r) => $r['model'] === 'claude-opus-5-5');
@@ -115,7 +114,7 @@ class AnthropicDigestDriverTest extends TestCase
 
     public function test_a_marked_model_of_another_provider_is_not_sent_to_anthropic(): void
     {
-        LlmModel::create(['provider' => 'openai', 'model' => 'gpt-picked', 'is_digest_model' => true]);
+        $this->addLlmModel('openai', 'gpt-picked', forDigests: true);
 
         $this->assertSame('claude-haiku-5-5', (new AnthropicDigestDriver)->model());
     }

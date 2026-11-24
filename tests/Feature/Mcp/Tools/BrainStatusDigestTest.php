@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Mcp\Tools;
 
-use App\Models\LlmModel;
 use App\Models\Room;
 use App\Models\Wing;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -43,10 +42,9 @@ class BrainStatusDigestTest extends TestCase
     public function test_digest_block_reports_the_prices_entered_for_the_digest_model(): void
     {
         config(['mnemon.llm.model' => 'gpt-test', 'mnemon.digest.openai_model' => null]);
-        LlmModel::create(['provider' => 'openai', 'model' => 'gpt-test',
-            'price_in_per_mtok' => '0.25', 'price_cached_in_per_mtok' => '0.025', 'price_out_per_mtok' => '2']);
+        $this->addLlmModel('openai', 'gpt-test', in: 0.25, out: 2, cachedIn: 0.025);
         // Another model's prices are not this one's.
-        LlmModel::create(['provider' => 'openai', 'model' => 'gpt-other', 'price_in_per_mtok' => '9', 'price_out_per_mtok' => '9']);
+        $this->addLlmModel('openai', 'gpt-other', in: 9, out: 9);
 
         $digest = $this->digest();
 
@@ -58,8 +56,7 @@ class BrainStatusDigestTest extends TestCase
     public function test_marking_another_providers_model_publishes_that_provider_model_and_price(): void
     {
         config(['mnemon.digest.driver' => 'openai', 'mnemon.llm.model' => 'gpt-test']);
-        LlmModel::create(['provider' => 'anthropic', 'model' => 'claude-haiku-5-5', 'is_digest_model' => true,
-            'price_in_per_mtok' => '1', 'price_out_per_mtok' => '5']);
+        $this->addLlmModel('anthropic', 'claude-haiku-5-5', in: 1, out: 5, forDigests: true);
 
         $digest = $this->digest();
 
@@ -71,8 +68,8 @@ class BrainStatusDigestTest extends TestCase
     public function test_swapping_the_digest_model_swaps_the_published_model_and_prices(): void
     {
         config(['mnemon.llm.model' => 'gpt-test', 'mnemon.digest.openai_model' => null]);
-        LlmModel::create(['provider' => 'openai', 'model' => 'gpt-test', 'price_in_per_mtok' => '1', 'price_out_per_mtok' => '1']);
-        LlmModel::create(['provider' => 'openai', 'model' => 'gpt-new', 'is_digest_model' => true]);
+        $this->addLlmModel('openai', 'gpt-test', in: 1, out: 1);
+        $this->addLlmModel('openai', 'gpt-new', forDigests: true);
 
         $digest = $this->digest();
 

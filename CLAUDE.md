@@ -76,9 +76,18 @@ Authentication is handled by Laravel Passport (OAuth 2.1):
 - `App\Services\Documents\DocumentIngestService` is the one path in, used by the Filament **Documents** resource, `POST /api/documents` (`DocumentUploadController`, same bearer tokens and wing restrictions as `/mcp`) and the `document_add` tool. Callers check wing access; the service does not.
 - Type detection is by content (`DocumentType::detect`), not by the name alone. Office XML goes through `SafeXml` (no DOCTYPE, no network, only simple literal entities) and `OfficeZip` (size limits). Images are described by `ImageCaptioner` (bound to `VisionImageCaptioner`, the digest driver's `describeImage()`); fake it in tests. Vision calls are recorded as `DigestUsage` rows with `purpose = vision`.
 
+### Chat models (settings file)
+
+- The models digests can run on, their prices and the one marked for digests are configuration, kept in `storage/overrides/LlmModel.yaml` (`mnemon.overrides_path`), never the database. `Mnemon\Entities\LlmModel\LlmModelList` holds the rules (one entry per provider and model, one digest model); read and write it through `LlmModelStore` (bound in `src/Delivery/Wiring.php` to `YamlLlmModelStore`). The **LLM models** admin page (`App\Filament\Pages\LlmModels`) writes the same file. Recorded calls stay in `digest_usages` (`DigestUsage::totalsByModel()`).
+- In tests the store is in memory (`Tests\TestCase`); add a model with `$this->addLlmModel(...)`.
+
 ### Audit Trail
 
 - **BrainSession** — create-only log of every MCP tool invocation. Records tool name, source, input, and result count.
+
+## FIDES (new code)
+
+Mnemon is moving to the FIDES architecture one piece at a time. New code goes in `src/` (namespace `Mnemon\`), not `app/`. Before writing code there, read the rules and the Laravel mapping in [`AGENTS.md`](./AGENTS.md), and run `composer fides` before you finish. Code in `app/` follows the conventions below until it moves, and its count of FIDES violations may go down, never up.
 
 ## File Structure Conventions
 

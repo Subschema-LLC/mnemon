@@ -29,6 +29,7 @@
     "autoload": {
         "psr-4": {
             "App\\": "app/",
+            "Mnemon\\": "src/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/"
         }
@@ -54,6 +55,10 @@
         "test": [
             "@php artisan config:clear --ansi",
             "@php artisan test"
+        ],
+        "fides": [
+            "@php fides/arch-check.php",
+            "@php fides/tests/run.php"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

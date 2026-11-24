@@ -8,6 +8,13 @@ return [
     // from clobbering it.
     'admin_password_path' => storage_path('admin-password.txt'),
 
+    // The folder of operator settings files, one per owner (LlmModel.yaml:
+    // the chat models and their prices). They belong to whoever runs Mnemon:
+    // no release ships or overwrites them, and the admin panel writes them.
+    // Under storage/ by default, which the Docker volume already keeps; back
+    // this folder up with the database.
+    'overrides_path' => env('MNEMON_OVERRIDES_PATH', storage_path('overrides')),
+
     // Address the public landing page's contact form notifies, in addition
     // to always persisting the submission as a ContactSubmission row. Empty
     // by default: ContactController skips the send entirely rather than

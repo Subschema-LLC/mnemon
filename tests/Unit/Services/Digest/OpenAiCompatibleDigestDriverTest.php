@@ -2,7 +2,6 @@
 
 namespace Tests\Unit\Services\Digest;
 
-use App\Models\LlmModel;
 use App\Services\Digest\DigestUnavailable;
 use App\Services\Digest\OpenAiCompatibleDigestDriver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -78,7 +77,7 @@ class OpenAiCompatibleDigestDriverTest extends TestCase
     public function test_the_marked_model_wins_when_it_is_this_providers(): void
     {
         Http::fake(['openrouter.ai/*' => Http::response($this->reply('{"proposals":[]}'))]);
-        LlmModel::create(['provider' => 'openai-compatible', 'model' => 'meta-llama/llama-4', 'is_digest_model' => true]);
+        $this->addLlmModel('openai-compatible', 'meta-llama/llama-4', forDigests: true);
 
         (new OpenAiCompatibleDigestDriver)->digest('t', []);
 

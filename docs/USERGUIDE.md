@@ -817,6 +817,26 @@ which driver runs, so no restart is needed. With the server's key set, the model
 the provider itself; without it, the list is the models Mnemon knows about. A model that is not
 listed (a fine-tune, a model newer than the list) is added with the **+** beside the field.
 
+The list of models is kept in a settings file, `storage/overrides/LlmModel.yaml` (the folder is
+`MNEMON_OVERRIDES_PATH`), not in the database. Saving on the **LLM models** page rewrites it, and
+it can be edited by hand too; either way the change applies from the next request. A typo stops
+with the file and the entry named rather than being ignored:
+
+```yaml
+models:
+  -
+    provider: anthropic
+    model: claude-haiku-5-5
+    price_in_per_mtok: 1
+    price_out_per_mtok: 5
+    use_for_digests: true
+    notes: 'Pricing page, Nov 2026'
+```
+
+Saving in the panel keeps only the file's header comment. Keys: `provider`, `model`,
+`price_in_per_mtok`, `price_cached_in_per_mtok`, `price_out_per_mtok`, `use_for_digests` (one
+model at most) and `notes`.
+
 Without a marked model, `MNEMON_DIGEST_DRIVER` picks the driver:
 
 ```env
@@ -1059,10 +1079,11 @@ a sample of the sessions and extrapolates the rest by size, and says so.
 Two things are the operator's to set on the server, because Mnemon does not
 guess prices or tokens:
 
-- The digest model's prices, in the admin panel under **LLM models**: dollars
-  per million input, cached input and output tokens. Each model has its own
-  row, so changing the digest model there (**Use for digests**) changes the
-  price with it, and a price edit takes effect at once, without a deploy. A
+- The digest model's prices, in the admin panel under **LLM models** (or in
+  `storage/overrides/LlmModel.yaml`): dollars per million input, cached input
+  and output tokens. Each model has its own entry, so changing the digest
+  model there (**Use for digests**) changes the price with it, and a price
+  edit takes effect from the next request, without a deploy. A
   model with no price makes the scan and report show token counts and
   `cost: unknown (no price published)`, and refuses `--max-cost`.
 - `MNEMON_DIGEST_TYPICAL_OUTPUT_TOKENS` (default 3000) is the output a typical
@@ -1081,7 +1102,7 @@ counts (a call whose answer could not be used counts too: it was paid for).
 The **LLM models** page totals them per model and prices them at the model's
 current price, so a price correction re-prices past spending. To compare
 models, run the same project's trial on each (mark one, run, mark the next)
-and compare their rows. A row can be kept for a provider Mnemon cannot digest
+and compare their rows. A model can be kept for a provider Mnemon cannot digest
 with (added with the **+** beside the provider), for price comparison only.
 
 The run always has a cap, checked before every call: by default the estimate's
@@ -1475,6 +1496,7 @@ Mnemon's value compounds over time. Treat it like a primary database — back it
 2. **Passport encryption keys** (`storage/oauth-*.key` or the env-var versions). Without them, no OAuth tokens validate.
 3. **`.env`** — has DB credentials and `OPENAI_API_KEY`.
 4. **Uploaded documents' originals**, under `storage/app/private/documents/` (or on `MNEMON_DOCUMENT_DISK`). Their text is in the database as drawers; the files are what **Download** and **Extract again** need. The Docker install keeps them in the `storage` volume.
+5. **Settings files**, under `storage/overrides/` (or `MNEMON_OVERRIDES_PATH`): `LlmModel.yaml` holds the chat models, their prices and the digest model. A database dump does not include them. The Docker install keeps them in the `storage` volume.
 
 ### Daily dump
 

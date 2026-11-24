@@ -5,10 +5,46 @@ namespace Tests;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
+use Mnemon\Entities\LlmModel\LlmModel;
+use Mnemon\Entities\LlmModel\LlmModelStore;
+use Tests\Concerns\InMemoryLlmModelStore;
 
 abstract class TestCase extends BaseTestCase
 {
     private static bool $passportKeysEnsured = false;
+
+    /**
+     * The chat models live in a settings file; tests keep them in memory.
+     * Bound here, before RefreshDatabase migrates: the migration that moves
+     * llm_models rows saves them through the store, and must never write the
+     * real file in storage/overrides.
+     */
+    public function createApplication()
+    {
+        $app = parent::createApplication();
+        $app->instance(LlmModelStore::class, new InMemoryLlmModelStore);
+
+        return $app;
+    }
+
+    /**
+     * Adds a chat model to the store, the way the admin panel does: marking
+     * one for digests unmarks any other.
+     */
+    protected function addLlmModel(
+        string $provider,
+        string $model,
+        ?float $in = null,
+        ?float $out = null,
+        bool $forDigests = false,
+        ?float $cachedIn = null,
+    ): LlmModel {
+        $store = $this->app->make(LlmModelStore::class);
+        $added = new LlmModel($provider, $model, $in, $cachedIn, $out, $forDigests);
+        $store->save($store->load()->put($added));
+
+        return $added;
+    }
 
     protected function setUp(): void
     {

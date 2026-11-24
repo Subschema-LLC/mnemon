@@ -10,6 +10,32 @@ Plugin versions refer to the Claude Code plugin in `plugins/mnemon/`.
 ## [Unreleased]
 
 ### Added
+- **FIDES groundwork.** Mnemon starts moving, one piece at a time, to the
+  [FIDES](https://github.com/Subschema-LLC/FIDES-Software-Architecture)
+  architecture inside Laravel. New code goes in `src/` (namespace `Mnemon\`,
+  zones Entities, Features, Shared, Integrations, Delivery). `fides/arch-check.php`
+  holds `src/` to every rule it knows and `app/` to a ratchet: its counts of
+  inheritance, oversized files and facade imports (`fides/ratchet.json`) may go
+  down, never up. `composer fides` runs it with its tests, and so does a new
+  `fides` CI job. `AGENTS.md` holds the shared FIDES rules in a managed block
+  that `.github/workflows/fides-sync.yml` keeps current through a weekly pull
+  request, plus how the rules fit Laravel. No behaviour changes.
+
+### Changed
+- **The chat models and their prices moved from the database to a settings
+  file,** `storage/overrides/LlmModel.yaml` (folder: `MNEMON_OVERRIDES_PATH`).
+  The **LLM models** admin page reads and writes it, and it can be edited by
+  hand; a change applies from the next request. A key that is misspelled or a
+  value that breaks a rule stops with the file and the entry named. The
+  migration writes the `llm_models` rows to the file and drops the table; a
+  file that already lists models is kept, and a row that breaks a rule stops
+  the migration with the table untouched. **Back up `storage/overrides/`**
+  with the database: a dump no longer holds these settings. The first piece
+  of Mnemon built in FIDES: the `LlmModel` entity and its store contract in
+  `src/Entities/LlmModel/`, the YAML store in `src/Integrations/`, bound in
+  `src/Delivery/Wiring.php`. The admin page stays in `app/Filament` until the
+  model catalog and usage totals move. Usage stays in `digest_usages`: it is a
+  record of calls, not configuration.
 - **Session digests on Anthropic or any OpenAI-compatible API.** Two new digest
   drivers beside `openai`: `anthropic` (Messages API with structured outputs,
   `ANTHROPIC_API_KEY`, default `claude-haiku-5-5`) and `openai-compatible`
