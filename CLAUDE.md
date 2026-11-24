@@ -80,6 +80,10 @@ Authentication is handled by Laravel Passport (OAuth 2.1):
 
 - **BrainSession** — create-only log of every MCP tool invocation. Records tool name, source, input, and result count.
 
+## FIDES (new code)
+
+Mnemon is moving to the FIDES architecture one piece at a time. New code goes in `src/` (namespace `Mnemon\`), not `app/`. Before writing code there, read the rules and the Laravel mapping in [`AGENTS.md`](./AGENTS.md), and run `composer fides` before you finish. Code in `app/` follows the conventions below until it moves, and its count of FIDES violations may go down, never up.
+
 ## File Structure Conventions
 
 ```

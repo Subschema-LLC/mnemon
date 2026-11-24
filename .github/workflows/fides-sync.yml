@@ -1,0 +1,22 @@
+# Keeps the managed FIDES block in AGENTS.md in step with FIDES releases.
+# Each week it checks for a newer release and, if the rules changed, opens a
+# pull request against the default branch. The logic lives in the FIDES repo:
+# https://github.com/Subschema-LLC/FIDES-Software-Architecture/blob/main/agents/README.md
+#
+# A pull request opened with the workflow's token does not start CI. Close and
+# reopen it, or push to it, to run the checks before merging.
+name: FIDES rules sync
+
+on:
+  schedule:
+    - cron: '23 13 * * 1'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  sync:
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: Subschema-LLC/FIDES-Software-Architecture/.github/workflows/sync-agents.yml@v0.4

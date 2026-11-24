@@ -10,6 +10,16 @@ Plugin versions refer to the Claude Code plugin in `plugins/mnemon/`.
 ## [Unreleased]
 
 ### Added
+- **FIDES groundwork.** Mnemon starts moving, one piece at a time, to the
+  [FIDES](https://github.com/Subschema-LLC/FIDES-Software-Architecture)
+  architecture inside Laravel. New code goes in `src/` (namespace `Mnemon\`,
+  zones Entities, Features, Shared, Integrations, Delivery). `fides/arch-check.php`
+  holds `src/` to every rule it knows and `app/` to a ratchet: its counts of
+  inheritance, oversized files and facade imports (`fides/ratchet.json`) may go
+  down, never up. `composer fides` runs it with its tests, and so does a new
+  `fides` CI job. `AGENTS.md` holds the shared FIDES rules in a managed block
+  that `.github/workflows/fides-sync.yml` keeps current through a weekly pull
+  request, plus how the rules fit Laravel. No behaviour changes.
 - **Session digests on Anthropic or any OpenAI-compatible API.** Two new digest
   drivers beside `openai`: `anthropic` (Messages API with structured outputs,
   `ANTHROPIC_API_KEY`, default `claude-haiku-5-5`) and `openai-compatible`

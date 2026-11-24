@@ -104,6 +104,28 @@ jobs:
       - name: Check formatting
         run: ./vendor/bin/pint --test
 
+  fides:
+    name: fides
+    runs-on: ubuntu-latest
+    # The FIDES architecture check: every rule on src/, a ratchet on app/.
+    # It needs no Composer packages, so it skips the install and fails in
+    # seconds. See AGENTS.md.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Test the checker
+        run: php fides/tests/run.php
+
+      - name: Check the architecture
+        run: php fides/arch-check.php
+
   hooks:
     name: hooks
     runs-on: ubuntu-latest
